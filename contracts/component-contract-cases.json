@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "logical-failure",
+      "outcome": { "kind": "http", "status": 200, "body": "{\"ResponseCode\":\"99\",\"ResponseText\":\"logical\"}" },
+      "expected": "logical"
+    },
+    {
+      "id": "http-failure",
+      "outcome": { "kind": "http", "status": 503, "body": "{\"ResponseCode\":\"91\",\"ResponseText\":\"unavailable\"}" },
+      "expected": "http"
+    },
+    {
+      "id": "malformed-json",
+      "outcome": { "kind": "http", "status": 200, "body": "not-json" },
+      "expected": "malformed"
+    },
+    {
+      "id": "cancelled",
+      "outcome": { "kind": "aborted" },
+      "expected": "aborted"
+    },
+    {
+      "id": "deadline",
+      "outcome": { "kind": "timeout" },
+      "expected": "timeout"
+    }
+  ]
+}

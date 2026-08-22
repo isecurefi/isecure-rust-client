@@ -42,3 +42,43 @@ gate. No unresolved finding remains in these three scopes.
   encryption only, never private-key decryption; any other advisory still fails verification.
 - Used the same core request, response, auth and error code for native and `wasm32-wasip2`; the Wasm
   proof is a real Wasmtime execution, not a compile-only check.
+
+## Wasm-first hardening follow-up
+
+Reviewed 2026-08-22 after adding resource limits, exact-byte files, shared parity cases, mutation
+testing and automated Wasm gates.
+
+### 1. Functional and Wasm parity
+
+- Replaced caller-supplied Base64 file text with exact upload/download bytes and retained the exact
+  provider JSON wire shape.
+- Added exact-boundary and maximum-plus-one coverage for URLs, request/response bodies, files,
+  signatures and collections.
+- Made native and WASI execution consume one runner and one versioned failure-case file; added real
+  RSA-OAEP challenge execution, raw-byte upload/download and host-owned retry to that runner.
+- Moved the MFA collection bound ahead of every authentication branch after review found that an
+  unexpected `MfaOptions` field could otherwise bypass the item-count check.
+
+### 2. Credential, privacy and security
+
+- Bounded request serialization before allocation growth and documented that the host must cap a
+  response before copying it across WIT.
+- Added zeroization for partially serialized rejected requests and oversized decoded file buffers
+  after review found those temporary values were not wrapped on every error path.
+- Pinned official Wasmtime and wasm-tools archives by host-specific digest, validated the component,
+  fixed its exact command-harness imports and explicitly denied network, filesystem, HTTP, clock and
+  randomness imports.
+- Made the tool installer refuse symlink destinations and existing binary targets rather than
+  overwriting them.
+
+### 3. KISS, DRY and supply chain
+
+- Added no production dependency, feature flag, runtime, WIT model or second client. One six-field
+  `ResourceLimits` value and one typed `LimitError` cover all resource failures.
+- Shared the existing synthetic RSA public key and the complete native/WASI runner instead of
+  copying test logic.
+- Kept fuzz-style testing deterministic and dependency-free: 14,000 bounded mutations run in the
+  ordinary suite.
+- Added one pinned CI job and fixed a review-discovered invalid `cargo audit fetch` command before
+  completion. Strict Clippy, MSRV, native/Wasm builds, live synthetic compatibility, SBOM drift and
+  the full gate pass with no SDK `unsafe` code.

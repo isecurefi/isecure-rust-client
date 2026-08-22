@@ -284,15 +284,8 @@ fn save_fixture(path: &Path, fixture: &LiveFixture) {
 }
 
 fn test_public_key() -> String {
-    "-----BEGIN PUBLIC KEY-----\n\
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkuSaoSZztGAIGDTY7Rff\n\
-psBHJJT1k207UodOJbYFhHAq0lWJnvMPLl5Q1DUUZdTGtTdL8Dsaj/Bo2+gSykMM\n\
-R5QiKewvQsLfvqjwOO8JDItnhJl0lUqcPpdQV4M/Ai3YNRjNcVy4a+pichqtSAWl\n\
-9S1HV01MNeouk8PEr/zoUasmgfO3mz6N6XTUtF/tIi8K2kBOsLAtqltihFSd/zT8\n\
-ifYZE9cZTJ09lUs7kMz1wxFIsiegaE1jUYV+VSLu3PJ97oKhQpqop8EnkBAoBl6r\n\
-mdmFryBQIdakPIdd4rO5Yg+to10n4u7Wij9ePIwWMfbqY4QoW5nXqMgFJQkIt4TG\n\
-eQIDAQAB\n\
------END PUBLIC KEY-----"
+    include_str!("../contracts/synthetic-rsa-public.pem")
+        .trim_end()
         .to_owned()
 }
 

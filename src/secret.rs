@@ -23,6 +23,11 @@ impl SecretString {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Returns the secret length without exposing its contents.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl From<String> for SecretString {
@@ -67,6 +72,11 @@ impl SecretBytes {
     /// Returns whether the secret contains no bytes.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Returns the secret length without exposing its contents.
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 }
 

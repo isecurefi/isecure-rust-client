@@ -1,17 +1,21 @@
 //! Stateful, transport-injected ISECure REST API v2 client.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    io::{self, Write},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
     ApiResponse, AuthState, CertificateExport, CertificateSharesResponse, ChallengeEncryptor,
     DownloadFileResponse, EnrollCertificateRequest, Error, ExportCertificatesResponse,
     ExportedCertificate, Header, HeaderValue, HttpError, HttpMethod, ImportCertificateRequest,
-    ListAccountsResponse, ListCertificatesResponse, ListFilesQuery, ListFilesResponse,
-    ListKeysResponse, LogicalError, MfaMethod, Mode, PasswordReset, PgpKeyPurpose, ProtocolError,
-    RegistrationResult, Request, Response, SecretBytes, SecretString, Session, Transport,
-    UploadFileRequest, auth::classify_failure, url,
+    LimitError, LimitKind, ListAccountsResponse, ListCertificatesResponse, ListFilesQuery,
+    ListFilesResponse, ListKeysResponse, LogicalError, MfaMethod, Mode, PasswordReset,
+    PgpKeyPurpose, ProtocolError, RegistrationResult, Request, ResourceLimits, Response,
+    SecretBytes, SecretString, Session, Transport, UploadFileRequest, auth::classify_failure, url,
 };
 
 /// Time source used for deterministic session expiry.
@@ -45,6 +49,7 @@ pub struct ClientConfig {
     bank: String,
     api_key: Option<SecretString>,
     expiry_skew_seconds: u64,
+    limits: ResourceLimits,
 }
 
 impl ClientConfig {
@@ -71,6 +76,11 @@ impl ClientConfig {
     pub fn bank(&self) -> &str {
         &self.bank
     }
+
+    /// Resource bounds enforced by this client.
+    pub const fn limits(&self) -> ResourceLimits {
+        self.limits
+    }
 }
 
 /// Builder for a complete client configuration.
@@ -86,6 +96,7 @@ pub struct ClientBuilder {
     bank: Option<String>,
     api_key: Option<SecretString>,
     expiry_skew_seconds: u64,
+    limits: ResourceLimits,
 }
 
 impl ClientBuilder {
@@ -103,6 +114,7 @@ impl ClientBuilder {
             bank: None,
             api_key: None,
             expiry_skew_seconds: 5,
+            limits: ResourceLimits::default(),
         }
     }
 
@@ -154,6 +166,13 @@ impl ClientBuilder {
         self
     }
 
+    /// Sets explicit SDK resource bounds. Hosts should enforce stricter bounds
+    /// before copying response bytes into a WebAssembly guest.
+    pub const fn resource_limits(mut self, value: ResourceLimits) -> Self {
+        self.limits = value;
+        self
+    }
+
     /// Validates and builds immutable configuration.
     pub fn build(self) -> Result<ClientConfig, Error> {
         let phone = self
@@ -174,8 +193,21 @@ impl ClientBuilder {
         let bank = self
             .bank
             .ok_or(Error::Protocol(ProtocolError::InvalidConfiguration))?;
-        url::Urls::new(&self.base_url, &self.email, self.mode, &phone, &bank)
+        for value in [&self.base_url, &self.email, &phone, &bank] {
+            ensure_limit(value.len(), self.limits.max_url_bytes(), LimitKind::Url)?;
+        }
+        let urls = url::Urls::new(&self.base_url, &self.email, self.mode, &phone, &bank)
             .map_err(Error::Protocol)?;
+        for resolved in [
+            urls.account_phone(),
+            urls.password(),
+            urls.select_mfa(),
+            urls.files(),
+            urls.cert(),
+            urls.accounts(),
+        ] {
+            ensure_limit(resolved.len(), self.limits.max_url_bytes(), LimitKind::Url)?;
+        }
         if company.is_empty() || name.is_empty() || password.is_empty() || public_key_pem.is_empty()
         {
             return Err(Error::Protocol(ProtocolError::InvalidConfiguration));
@@ -192,6 +224,7 @@ impl ClientBuilder {
             bank,
             api_key: self.api_key,
             expiry_skew_seconds: self.expiry_skew_seconds,
+            limits: self.limits,
         })
     }
 }
@@ -523,6 +556,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             .send_json::<(), _>(HttpMethod::Get, self.urls()?.pgp(), None, true, 200)
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.pgp_keys.len())?;
         Ok(response)
     }
 
@@ -535,8 +569,20 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
 
     /// Uploads one bank file.
     pub async fn upload_file(&self, input: &UploadFileRequest) -> Result<ApiResponse, Error> {
+        ensure_limit(
+            input.file_contents.len(),
+            self.config.limits.max_file_bytes(),
+            LimitKind::FileContent,
+        )?;
+        ensure_limit(
+            input.signature.len(),
+            self.config.limits.max_signature_bytes(),
+            LimitKind::Signature,
+        )?;
+        let encoded_contents =
+            SecretString::new(BASE64_STANDARD.encode(input.file_contents.expose_secret()));
         let request = UploadFileWire {
-            contents: input.file_contents.expose_secret(),
+            contents: encoded_contents.expose_secret(),
             name: &input.file_name,
             file_type: &input.file_type,
             signature: input.signature.expose_secret(),
@@ -549,9 +595,11 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
     pub async fn list_files(&self, query: &ListFilesQuery) -> Result<ListFilesResponse, Error> {
         let mut values = Vec::with_capacity(2);
         if let Some(file_type) = query.file_type.as_deref().filter(|value| !value.is_empty()) {
+            self.ensure_url_component(file_type)?;
             values.push(("FileType", file_type));
         }
         if let Some(status) = query.status.as_deref().filter(|value| !value.is_empty()) {
+            self.ensure_url_component(status)?;
             values.push(("Status", status));
         }
         let response: ListFilesResponse = self
@@ -564,6 +612,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             )
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.file_descriptors.len())?;
         Ok(response)
     }
 
@@ -573,7 +622,9 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         file_type: &str,
         file_reference: &str,
     ) -> Result<DownloadFileResponse, Error> {
-        let mut response: DownloadWire = self
+        self.ensure_url_component(file_type)?;
+        self.ensure_url_component(file_reference)?;
+        let response: DownloadWire = self
             .send_json::<(), _>(
                 HttpMethod::Get,
                 self.urls()?.file(file_type, file_reference),
@@ -583,9 +634,24 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             )
             .await?;
         response.envelope().ensure_success()?;
+        ensure_limit(
+            response.content.len(),
+            max_base64_len(self.config.limits.max_file_bytes()),
+            LimitKind::FileContent,
+        )?;
+        let content = SecretBytes::new(
+            BASE64_STANDARD
+                .decode(response.content.as_bytes())
+                .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))?,
+        );
+        ensure_limit(
+            content.len(),
+            self.config.limits.max_file_bytes(),
+            LimitKind::FileContent,
+        )?;
         Ok(DownloadFileResponse {
             response: response.envelope(),
-            content: SecretString::new(std::mem::take(&mut response.content)),
+            content,
         })
     }
 
@@ -595,6 +661,8 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         file_type: &str,
         file_reference: &str,
     ) -> Result<ApiResponse, Error> {
+        self.ensure_url_component(file_type)?;
+        self.ensure_url_component(file_reference)?;
         self.auth_api_response::<()>(
             HttpMethod::Delete,
             self.urls()?.file(file_type, file_reference),
@@ -610,6 +678,11 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             .send_json::<(), _>(HttpMethod::Get, self.urls()?.certs(), None, true, 200)
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.certs.len())?;
+        self.ensure_collection(response.connections.len())?;
+        for connection in &response.connections {
+            self.ensure_collection(connection.certificates.len())?;
+        }
         Ok(response)
     }
 
@@ -633,6 +706,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         &self,
         external_email: &str,
     ) -> Result<CertificateSharesResponse, Error> {
+        self.ensure_url_component(external_email)?;
         let response: CertificateSharesResponse = self
             .send_json::<(), _>(
                 HttpMethod::Put,
@@ -643,6 +717,8 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             )
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.shared_to.len())?;
+        self.ensure_collection(response.shared_from.len())?;
         Ok(response)
     }
 
@@ -651,6 +727,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         &self,
         external_email: &str,
     ) -> Result<CertificateSharesResponse, Error> {
+        self.ensure_url_component(external_email)?;
         let response: CertificateSharesResponse = self
             .send_json::<(), _>(
                 HttpMethod::Delete,
@@ -661,6 +738,8 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             )
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.shared_to.len())?;
+        self.ensure_collection(response.shared_from.len())?;
         Ok(response)
     }
 
@@ -669,11 +748,13 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         &self,
         pgp_key_id: &str,
     ) -> Result<ExportCertificatesResponse, Error> {
+        self.ensure_url_component(pgp_key_id)?;
         let url = url::query(&self.urls()?.cert(), &[("PgpKeyId", pgp_key_id)]);
         let mut response: ExportCertificatesWire = self
             .send_json::<(), _>(HttpMethod::Get, url, None, true, 200)
             .await?;
         response.envelope().ensure_success()?;
+        self.ensure_collection(response.certs_and_keys.len())?;
         Ok(ExportCertificatesResponse {
             response: response.envelope(),
             certs_and_keys: response
@@ -732,6 +813,10 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             .send_json::<(), _>(HttpMethod::Get, self.urls()?.accounts(), None, true, 200)
             .await?;
         ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.accounts.len())?;
+        for account in &response.accounts {
+            self.ensure_collection(account.certs.len())?;
+        }
         Ok(response)
     }
 
@@ -775,6 +860,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
     }
 
     fn apply_auth_response(&mut self, mut wire: AuthResponseWire) -> Result<AuthState, Error> {
+        self.ensure_collection(wire.mfa_options.as_ref().map_or(0, Vec::len))?;
         let response = ApiResponse {
             response_code: std::mem::take(&mut wire.response_code),
             response_text: std::mem::take(&mut wire.response_text),
@@ -993,11 +1079,14 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         if authenticated && self.is_session_expired() && !allow_expired_session {
             return Err(Error::Protocol(ProtocolError::SessionExpired));
         }
+        ensure_limit(
+            url.len(),
+            self.config.limits.max_url_bytes(),
+            LimitKind::Url,
+        )?;
         let body = body
-            .map(serde_json::to_vec)
-            .transpose()
-            .map_err(|_| Error::Protocol(ProtocolError::InvalidConfiguration))?
-            .map(SecretBytes::new);
+            .map(|value| serialize_bounded(value, self.config.limits.max_request_body_bytes()))
+            .transpose()?;
         let request = Request {
             method,
             url,
@@ -1005,7 +1094,28 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             body,
         };
         let response = self.transport.send(request).await?;
+        ensure_limit(
+            response.body.len(),
+            self.config.limits.max_response_body_bytes(),
+            LimitKind::ResponseBody,
+        )?;
         self.decode_response(response, expected_status)
+    }
+
+    fn ensure_collection(&self, actual: usize) -> Result<(), Error> {
+        ensure_limit(
+            actual,
+            self.config.limits.max_collection_items(),
+            LimitKind::CollectionItems,
+        )
+    }
+
+    fn ensure_url_component(&self, value: &str) -> Result<(), Error> {
+        ensure_limit(
+            value.len(),
+            self.config.limits.max_url_bytes(),
+            LimitKind::Url,
+        )
     }
 
     fn decode_response<R: DeserializeOwned>(
@@ -1084,6 +1194,71 @@ fn ensure_logical(response_code: &str) -> Result<(), Error> {
             request_id: None,
         }))
     }
+}
+
+fn ensure_limit(actual: usize, maximum: usize, kind: LimitKind) -> Result<(), Error> {
+    if actual <= maximum {
+        Ok(())
+    } else {
+        Err(Error::Limit(LimitError::new(kind)))
+    }
+}
+
+struct BoundedBody {
+    bytes: Vec<u8>,
+    maximum: usize,
+    exceeded: bool,
+}
+
+impl BoundedBody {
+    fn new(maximum: usize) -> Self {
+        Self {
+            bytes: Vec::with_capacity(maximum.min(1024)),
+            maximum,
+            exceeded: false,
+        }
+    }
+}
+
+impl Write for BoundedBody {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.maximum.saturating_sub(self.bytes.len()) {
+            self.exceeded = true;
+            return Err(io::Error::other("request body limit exceeded"));
+        }
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for BoundedBody {
+    fn drop(&mut self) {
+        self.bytes.fill(0);
+    }
+}
+
+fn serialize_bounded<Q: Serialize + ?Sized>(
+    value: &Q,
+    maximum: usize,
+) -> Result<SecretBytes, Error> {
+    let mut writer = BoundedBody::new(maximum);
+    match serde_json::to_writer(&mut writer, value) {
+        Ok(()) => Ok(SecretBytes::new(std::mem::take(&mut writer.bytes))),
+        Err(_) if writer.exceeded => Err(Error::Limit(LimitError::new(LimitKind::RequestBody))),
+        Err(_) => Err(Error::Protocol(ProtocolError::InvalidConfiguration)),
+    }
+}
+
+fn max_base64_len(raw_bytes: usize) -> usize {
+    raw_bytes
+        .checked_add(2)
+        .and_then(|value| value.checked_div(3))
+        .and_then(|value| value.checked_mul(4))
+        .unwrap_or(usize::MAX)
 }
 
 fn is_safe_request_id(value: &str) -> bool {

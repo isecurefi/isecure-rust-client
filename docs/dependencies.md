@@ -12,7 +12,7 @@ drift.
 
 | Crate | Exact version | Licence | Reason |
 | --- | ---: | --- | --- |
-| `base64` | 0.22.1 | MIT OR Apache-2.0 | Encode RSA ciphertext for the REST wire. |
+| `base64` | 0.22.1 | MIT OR Apache-2.0 | Encode RSA ciphertext and exact bank-file bytes for the REST wire. |
 | `rand_core` | 0.6.4 | MIT OR Apache-2.0 | Define the caller-injected cryptographic RNG contract. It does not select an OS RNG. |
 | `rsa` | 0.9.10 | MIT OR Apache-2.0 | Parse SPKI/PKCS#1 public keys and perform RSA-OAEP. |
 | `serde` | 1.0.229 | MIT OR Apache-2.0 | Exact typed JSON models. |
@@ -43,6 +43,16 @@ cargo audit --ignore RUSTSEC-2023-0071
 ```
 
 Dependency changes require the same functional, security and simplicity reviews as source changes.
+
+## Verification tools
+
+The mandatory Wasm gate downloads only digest-pinned official archives:
+
+- Wasmtime 48.0.0 for real `wasm32-wasip2` execution; and
+- wasm-tools 1.257.1 for component validation and exact import inspection.
+
+`scripts/install-wasm-toolchain.sh` records the admitted Apple ARM64 and Linux x86-64 archive
+digests. These are verification tools, not crate dependencies or runtime capabilities.
 
 ## Reviewed advisory exception
 

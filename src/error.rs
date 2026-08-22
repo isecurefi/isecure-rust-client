@@ -67,6 +67,40 @@ impl fmt::Display for TransportError {
 
 impl error::Error for TransportError {}
 
+/// Resource whose configured bound was exceeded.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LimitKind {
+    /// Fully resolved URL.
+    Url,
+    /// Serialized JSON request body.
+    RequestBody,
+    /// Raw HTTP response body.
+    ResponseBody,
+    /// Decoded bank-file content.
+    FileContent,
+    /// Detached-signature text.
+    Signature,
+    /// One provider-returned collection.
+    CollectionItems,
+}
+
+/// Value-free resource-limit failure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LimitError {
+    kind: LimitKind,
+}
+
+impl LimitError {
+    pub(crate) const fn new(kind: LimitKind) -> Self {
+        Self { kind }
+    }
+
+    /// Resource whose bound was exceeded.
+    pub const fn kind(self) -> LimitKind {
+        self.kind
+    }
+}
+
 /// Non-success HTTP response with safe structured fields.
 #[derive(Debug)]
 pub struct HttpError {
@@ -119,6 +153,8 @@ pub enum Error {
     Logical(LogicalError),
     /// Wire data or local call ordering violated the contract.
     Protocol(ProtocolError),
+    /// A configured memory or collection bound was exceeded.
+    Limit(LimitError),
 }
 
 impl fmt::Display for Error {
@@ -134,6 +170,11 @@ impl fmt::Display for Error {
                 error.response_code
             ),
             Self::Protocol(error) => write!(formatter, "ISECure protocol failed ({error:?})"),
+            Self::Limit(error) => write!(
+                formatter,
+                "ISECure resource limit exceeded ({:?})",
+                error.kind
+            ),
         }
     }
 }

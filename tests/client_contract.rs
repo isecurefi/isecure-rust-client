@@ -8,8 +8,9 @@ use std::{
 use futures_executor::block_on;
 use isecure_rust_client::{
     ApiResponse, AuthState, ChallengeEncryptor, Client, ClientConfig, Clock, Error, HeaderValue,
-    HttpMethod, ListFilesQuery, MfaMethod, Mode, ProtocolError, Request, Response, SecretBytes,
-    SecretString, Transport, TransportError, TransportErrorKind, UploadFileRequest,
+    HttpMethod, LimitKind, ListFilesQuery, MfaMethod, Mode, ProtocolError, Request, ResourceLimits,
+    Response, SecretBytes, SecretString, Transport, TransportError, TransportErrorKind,
+    UploadFileRequest,
 };
 use serde_json::{Value, json};
 
@@ -84,6 +85,10 @@ impl Clock for FixtureClock {
 }
 
 fn config(mode: Mode, api_key: bool) -> ClientConfig {
+    config_with_limits(mode, api_key, ResourceLimits::default())
+}
+
+fn config_with_limits(mode: Mode, api_key: bool, limits: ResourceLimits) -> ClientConfig {
     let builder = ClientConfig::builder(
         "https://ws-api.test.isecure.fi/v2",
         "user@example.test",
@@ -94,7 +99,8 @@ fn config(mode: Mode, api_key: bool) -> ClientConfig {
     .name("Example User")
     .password(SecretString::new("Example-password-123!"))
     .public_key_pem("fixture public key")
-    .bank("simulator");
+    .bank("simulator")
+    .resource_limits(limits);
     let builder = if api_key {
         builder.api_key(SecretString::new("existing-api-key"))
     } else {
@@ -118,6 +124,26 @@ fn client(
     (
         Client::with_clock(
             config(mode, api_key),
+            transport.clone(),
+            FixtureEncryptor,
+            FixtureClock(1_000),
+        ),
+        transport,
+    )
+}
+
+fn client_with_limits(
+    mode: Mode,
+    api_key: bool,
+    limits: ResourceLimits,
+) -> (
+    Client<FakeTransport, FixtureEncryptor, FixtureClock>,
+    FakeTransport,
+) {
+    let transport = FakeTransport::default();
+    (
+        Client::with_clock(
+            config_with_limits(mode, api_key, limits),
             transport.clone(),
             FixtureEncryptor,
             FixtureClock(1_000),
@@ -407,7 +433,7 @@ fn provider_operations_use_exact_methods_paths_and_shapes() {
     block_on(client.list_keys()).expect("list keys");
     block_on(client.delete_key("1234ABCD")).expect("delete key");
     block_on(client.upload_file(&UploadFileRequest {
-        file_contents: SecretString::new("ZmlsZQ=="),
+        file_contents: SecretBytes::new(b"file".to_vec()),
         file_name: "payment.xml".to_owned(),
         file_type: "pain.001".to_owned(),
         signature: SecretString::new("SIGNATURE"),
@@ -418,7 +444,8 @@ fn provider_operations_use_exact_methods_paths_and_shapes() {
         status: Some("NEW".to_owned()),
     }))
     .expect("list files");
-    block_on(client.download_file("camt.053", "file/ref")).expect("download file");
+    let downloaded = block_on(client.download_file("camt.053", "file/ref")).expect("download file");
+    assert_eq!(downloaded.content.expose_secret(), b"file");
     block_on(client.delete_file("camt.053", "file/ref")).expect("delete file");
     block_on(client.list_certificates()).expect("list certificates");
     block_on(client.configure_certificates(isecure_rust_client::CertificateExport::Allowed))
@@ -488,6 +515,203 @@ fn provider_operations_use_exact_methods_paths_and_shapes() {
             "Signature":"SIGNATURE"
         })
     );
+}
+
+#[test]
+fn resource_limits_accept_the_boundary_and_reject_maximum_plus_one() {
+    let limits = ResourceLimits::new(8_192, 4_096, 4_096, 4, 9, 1).expect("limits");
+    let (mut client, transport) = client_with_limits(Mode::Data, true, limits);
+    authenticate(&mut client, &transport);
+
+    transport.json(201, json!({"ResponseCode":"00","ResponseText":"uploaded"}));
+    block_on(client.upload_file(&UploadFileRequest {
+        file_contents: SecretBytes::new(b"file".to_vec()),
+        file_name: "a".to_owned(),
+        file_type: "b".to_owned(),
+        signature: SecretString::new("signature"),
+    }))
+    .expect("exact limits");
+
+    let requests_before = transport.state.borrow().requests.len();
+    let error = block_on(client.upload_file(&UploadFileRequest {
+        file_contents: SecretBytes::new(b"file!".to_vec()),
+        file_name: "a".to_owned(),
+        file_type: "b".to_owned(),
+        signature: SecretString::new("signature"),
+    }))
+    .expect_err("oversized file");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::FileContent));
+    assert_eq!(transport.state.borrow().requests.len(), requests_before);
+
+    let error = block_on(client.upload_file(&UploadFileRequest {
+        file_contents: SecretBytes::new(b"file".to_vec()),
+        file_name: "a".to_owned(),
+        file_type: "b".to_owned(),
+        signature: SecretString::new("signature!"),
+    }))
+    .expect_err("oversized signature");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::Signature));
+    assert_eq!(transport.state.borrow().requests.len(), requests_before);
+}
+
+#[test]
+fn url_and_request_body_limits_cover_exact_boundary_and_maximum_plus_one() {
+    let build_with_url_limit = |maximum| {
+        ClientConfig::builder(
+            "https://ws-api.test.isecure.fi/v2",
+            "user@example.test",
+            Mode::Admin,
+        )
+        .phone("+358401234567")
+        .company("Example Company")
+        .name("Example User")
+        .password(SecretString::new("Example-password-123!"))
+        .public_key_pem("fixture public key")
+        .bank("simulator")
+        .resource_limits(
+            ResourceLimits::new(maximum, 4_096, 4_096, 1_024, 1_024, 10).expect("limits"),
+        )
+        .build()
+    };
+    build_with_url_limit(83).expect("exact longest configured URL");
+    assert!(matches!(
+        build_with_url_limit(82),
+        Err(Error::Limit(value)) if value.kind() == LimitKind::Url
+    ));
+
+    let upload = || UploadFileRequest {
+        file_contents: SecretBytes::new(vec![0x5a; 128]),
+        file_name: "payment.xml".to_owned(),
+        file_type: "pain.001".to_owned(),
+        signature: SecretString::new("signature"),
+    };
+    let (mut probe, probe_transport) = client(Mode::Data, true);
+    authenticate(&mut probe, &probe_transport);
+    probe_transport.json(201, json!({"ResponseCode":"00","ResponseText":"uploaded"}));
+    block_on(probe.upload_file(&upload())).expect("probe upload");
+    let request_bytes = probe_transport
+        .state
+        .borrow()
+        .requests
+        .last()
+        .and_then(|request| request.body.as_ref())
+        .map(SecretBytes::len)
+        .expect("upload body length");
+
+    let exact = ResourceLimits::new(8_192, request_bytes, 4_096, 128, 9, 10).expect("exact limits");
+    let (mut exact_client, exact_transport) = client_with_limits(Mode::Data, true, exact);
+    authenticate(&mut exact_client, &exact_transport);
+    exact_transport.json(201, json!({"ResponseCode":"00","ResponseText":"uploaded"}));
+    block_on(exact_client.upload_file(&upload())).expect("exact request-body limit");
+
+    let too_small =
+        ResourceLimits::new(8_192, request_bytes - 1, 4_096, 128, 9, 10).expect("small limits");
+    let (mut limited_client, limited_transport) = client_with_limits(Mode::Data, true, too_small);
+    authenticate(&mut limited_client, &limited_transport);
+    let requests_before = limited_transport.state.borrow().requests.len();
+    let error = block_on(limited_client.upload_file(&upload())).expect_err("oversized request");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::RequestBody));
+    assert_eq!(
+        limited_transport.state.borrow().requests.len(),
+        requests_before
+    );
+}
+
+#[test]
+fn response_and_collection_limits_fail_closed() {
+    let exact_body = serde_json::to_vec(&json!({
+        "ResponseCode":"00",
+        "ResponseText":"OK"
+    }))
+    .expect("fixture JSON");
+    let exact_limits =
+        ResourceLimits::new(8_192, 4_096, exact_body.len(), 32, 32, 1).expect("limits");
+    let (client, transport) = client_with_limits(Mode::Admin, true, exact_limits);
+    transport
+        .state
+        .borrow_mut()
+        .responses
+        .push_back(Ok(Response {
+            status: 200,
+            body: SecretBytes::new(exact_body),
+        }));
+    block_on(client.init_password_reset()).expect("exact response limit");
+
+    let small_limits = ResourceLimits::new(8_192, 4_096, 8, 32, 32, 1).expect("limits");
+    let (client, transport) = client_with_limits(Mode::Admin, true, small_limits);
+    transport.json(200, json!({"ResponseCode":"00","ResponseText":"OK"}));
+    let error = block_on(client.init_password_reset()).expect_err("oversized response");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::ResponseBody));
+
+    let collection_limits = ResourceLimits::new(8_192, 4_096, 4_096, 32, 32, 1).expect("limits");
+    let (mut client, transport) = client_with_limits(Mode::Admin, true, collection_limits);
+    authenticate(&mut client, &transport);
+    transport.json(
+        200,
+        json!({
+            "ResponseCode":"00",
+            "ResponseText":"keys",
+            "PgpKeys":[
+                {"PgpKeyId":"00000001","PgpKeyPurpose":"authorize"},
+                {"PgpKeyId":"00000002","PgpKeyPurpose":"authorize"}
+            ]
+        }),
+    );
+    let error = block_on(client.list_keys()).expect_err("too many items");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::CollectionItems));
+
+    let (mut client, transport) = client_with_limits(Mode::Admin, true, collection_limits);
+    transport.json(200, challenge());
+    transport.json(
+        200,
+        json!({
+            "ResponseCode":"00",
+            "ResponseText":"Login OK",
+            "ApiKey":"existing-api-key",
+            "IdToken":"id-token",
+            "ExpiresIn":"3600",
+            "MfaOptions":["SMS_MFA","SOFTWARE_TOKEN_MFA"]
+        }),
+    );
+    let error = block_on(client.login()).expect_err("unexpected oversized MFA collection");
+    assert!(matches!(error, Error::Limit(value) if value.kind() == LimitKind::CollectionItems));
+    assert!(!client.is_authenticated());
+}
+
+#[test]
+fn download_decodes_exact_bytes_and_rejects_invalid_or_oversized_base64() {
+    let limits = ResourceLimits::new(8_192, 4_096, 4_096, 4, 32, 10).expect("limits");
+    let (mut client, transport) = client_with_limits(Mode::Data, true, limits);
+    authenticate(&mut client, &transport);
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"file","Content":"ZmlsZQ=="}),
+    );
+    assert_eq!(
+        block_on(client.download_file("type", "ref"))
+            .expect("download")
+            .content
+            .expose_secret(),
+        b"file"
+    );
+
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"file","Content":"!!!!"}),
+    );
+    assert!(matches!(
+        block_on(client.download_file("type", "ref")),
+        Err(Error::Protocol(ProtocolError::MalformedResponse))
+    ));
+
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"file","Content":"ZmlsZSE="}),
+    );
+    assert!(matches!(
+        block_on(client.download_file("type", "ref")),
+        Err(Error::Limit(value)) if value.kind() == LimitKind::FileContent
+    ));
 }
 
 #[test]

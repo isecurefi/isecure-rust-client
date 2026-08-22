@@ -20,6 +20,15 @@ The caller still owns secure input, storage, screen rendering, clipboard policy,
 HTTP/TLS, DNS, proxy, redirect and certificate policy. WebAssembly hosts should release credentials
 through a bounded capability and destroy the instance after use. The SDK is not a vault.
 
+## WebAssembly resource boundary
+
+`ResourceLimits` provides SDK-side defense in depth for URLs, JSON bodies, decoded files,
+signatures and collections. A host must enforce the response-byte limit before crossing WIT and
+allocating guest memory; the SDK check occurs after the injected transport returns. The retained
+WASI command harness has one exact import allowlist and rejects filesystem, sockets, HTTP, clocks
+and randomness. That command scaffolding is not the production Connector world: the signed plugin
+package must separately admit only its generated WIT capabilities.
+
 ## Transport and retries
 
 The core sends exactly once per method call. It does not retry automatically because several REST

@@ -12,9 +12,9 @@ cargo audit --no-fetch --ignore RUSTSEC-2023-0071
 scripts/generate-sbom.sh
 git diff --exit-code -- sbom.cdx.json
 
-if [ -n "${WASMTIME_BIN:-}" ]; then
+if [ -n "${WASMTIME_BIN:-}" ] && [ -n "${WASM_TOOLS_BIN:-}" ]; then
     scripts/test-wasm.sh
 else
-    echo "WASMTIME_BIN is required for the real Wasm execution gate" >&2
+    echo "WASMTIME_BIN and WASM_TOOLS_BIN are required for the real Wasm gate" >&2
     exit 2
 fi

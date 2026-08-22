@@ -13,6 +13,9 @@ The client supports:
 - OpenPGP public-key administration; and
 - file upload, listing, download and deletion.
 
+File methods use exact bytes at the Rust boundary. The SDK performs and validates the REST API's
+Base64 wire encoding, so Connector code does not maintain a second encoding path.
+
 The SDK owns only the provider protocol. It does not own HTTP sockets, credential storage, retries,
 financial rules, approvals, bank signing keys, application configuration or plugin authority.
 
@@ -25,6 +28,11 @@ Create a `Client<T, E>` with three caller-owned capabilities:
 - `E: ChallengeEncryptor` performs the exact RSA-OAEP SHA-1 challenge operation. The supplied
   `RsaChallengeEncryptor` takes caller-provided cryptographic randomness.
 - An optional `Clock` makes expiry behavior deterministic in tests.
+
+`ResourceLimits` bounds resolved URLs, JSON requests and responses, decoded files, signatures and
+provider collections. Defaults are defensive SDK limits rather than provider claims. A signed
+Connector profile may supply explicit non-zero limits; the Wasm host must still cap response bytes
+before copying them into guest memory.
 
 The core crate opens no sockets or files, starts no runtime and depends on neither Tokio nor an HTTP
 library. The same code builds for native Rust and `wasm32-wasip2`.
@@ -63,13 +71,17 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets
 cargo build --locked --release
 cargo build --locked --release --target wasm32-wasip2 --lib
-WASMTIME_BIN=/path/to/wasmtime scripts/test-wasm.sh
+scripts/install-wasm-toolchain.sh /absolute/private/tool-directory
+WASMTIME_BIN=/path/to/wasmtime WASM_TOOLS_BIN=/path/to/wasm-tools scripts/test-wasm.sh
 ```
 
-The Wasm script builds and executes `examples/wasm_contract.rs` as real WASI code. Its cases cover
-success, logical failure, HTTP failure, malformed JSON, cancellation, timeout and secret-safe debug
-output. The native suite additionally covers exact operations, URL encoding, API-key substitution,
-explicit retry ownership, expiry and RSA interoperability.
+The Wasm script builds and executes `examples/wasm_contract.rs` as real WASI code. The identical
+runner and versioned `contracts/component-contract-cases.json` execute natively too. They cover
+authentication, raw-byte upload/download, logical and HTTP failure, malformed JSON, cancellation,
+timeout, host-owned retry and secret-safe debug output. The gate also validates the component,
+checks its exact import allowlist and enforces a 400,000-byte regression budget. The native suite
+additionally covers exact operations, resource-limit boundaries, URL encoding, API-key
+substitution, expiry, RSA interoperability and deterministic mutation fuzzing.
 
 The pinned Swagger bytes, source revision, digest and observed deviations live under `contracts/`.
 `tests/openapi_contract.rs` rejects contract, operation or schema inventory drift.

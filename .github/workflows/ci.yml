@@ -1,0 +1,40 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  native-and-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install Rust targets and audit tool
+        run: |
+          rustup toolchain install 1.94.1 --profile minimal --component rustfmt,clippy
+          rustup override set 1.94.1
+          rustup target add --toolchain 1.94.1 wasm32-wasip2
+          cargo install cargo-audit --version 0.22.0 --locked
+          cargo audit --ignore RUSTSEC-2023-0071
+
+      - name: Install pinned Wasm tools
+        run: scripts/install-wasm-toolchain.sh "$RUNNER_TEMP/isecure-wasm-tools"
+
+      - name: Run complete native and Wasm verification
+        env:
+          WASMTIME_BIN: ${{ runner.temp }}/isecure-wasm-tools/wasmtime
+          WASM_TOOLS_BIN: ${{ runner.temp }}/isecure-wasm-tools/wasm-tools
+        run: scripts/verify.sh
+
+      - name: Check minimum supported Rust version
+        run: |
+          rustup toolchain install 1.85.1 --profile minimal
+          rustup target add --toolchain 1.85.1 wasm32-wasip2
+          cargo +1.85.1 check --locked --all-targets
+          cargo +1.85.1 check --locked --target wasm32-wasip2 --lib

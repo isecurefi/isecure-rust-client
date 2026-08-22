@@ -28,4 +28,27 @@ The live check proves the current synthetic test endpoint only. It does not prov
 production availability, settlement, certification, customer credential custody or Connector/WASI
 host qualification.
 
+## Wasm-first hardening follow-up
+
+Also on 2026-08-22, the SDK added and passed:
+
+- typed URL, request, response, exact-file, signature and collection limits, including exact-boundary
+  and maximum-plus-one cases;
+- bounded request serialization and zeroization of complete and rejected temporary bodies;
+- exact-byte upload and download with Base64 confined to the provider wire;
+- one shared native/`wasm32-wasip2` runner for real RSA challenge encryption, authentication,
+  upload/download, error classes, cancellation, timeout, host-owned retry and secret-safe debug;
+- 10,000 deterministic response mutations and 4,000 URL/auth-transition mutations without a panic
+  or permissive drift result;
+- real Wasmtime 48.0.0 execution, wasm-tools 1.257.1 validation, the exact retained WASI command
+  import allowlist, rejection of network/filesystem/HTTP/clock/random imports, and a measured
+  355,567-byte artifact under the 400,000-byte budget; and
+- the guarded synthetic `gpgtest` Admin-TOTP/Data authentication, key-list and certificate-list
+  journey after the changes.
+
+The repository now has a digest-pinned GitHub Actions gate for the same checks plus Rust 1.85.1
+native and Wasm compilation. This records the workflow source; it does not claim a hosted run until
+GitHub executes the commit. The command-component allowlist is test scaffolding, not the final
+generated WIT Connector world or signed-plugin qualification.
+
 The resolved three-pass findings are recorded in `docs/reviews.md`.

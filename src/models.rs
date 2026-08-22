@@ -1,6 +1,6 @@
 //! Public provider-protocol request and response models.
 
-use crate::SecretString;
+use crate::{SecretBytes, SecretString};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -114,11 +114,11 @@ pub struct ListFilesQuery {
     pub status: Option<String>,
 }
 
-/// File upload input. File contents and detached signatures are zeroized.
+/// File upload input. Exact file bytes and detached signatures are zeroized.
 #[derive(Debug)]
 pub struct UploadFileRequest {
-    /// Base64-encoded file bytes.
-    pub file_contents: SecretString,
+    /// Exact file bytes. The SDK performs the REST contract's Base64 encoding.
+    pub file_contents: SecretBytes,
     /// Bank-visible filename.
     pub file_name: String,
     /// Bank-specific file type.
@@ -162,8 +162,8 @@ pub struct ListFilesResponse {
 pub struct DownloadFileResponse {
     /// Common provider response.
     pub response: ApiResponse,
-    /// Provider-returned content, normally Base64 text.
-    pub content: SecretString,
+    /// Exact decoded file bytes.
+    pub content: SecretBytes,
 }
 
 /// Registered OpenPGP public-key descriptor.

@@ -5,6 +5,7 @@ mod auth;
 mod client;
 mod crypto;
 mod error;
+mod limits;
 mod models;
 mod secret;
 mod transport;
@@ -14,8 +15,10 @@ pub use auth::{AuthErrorReason, AuthState, AuthStep, MfaMethod, Session, TotpEnr
 pub use client::{Client, ClientBuilder, ClientConfig, Clock, SystemClock};
 pub use crypto::{ChallengeEncryptor, RsaChallengeEncryptor};
 pub use error::{
-    Error, HttpError, LogicalError, ProtocolError, TransportError, TransportErrorKind,
+    Error, HttpError, LimitError, LimitKind, LogicalError, ProtocolError, TransportError,
+    TransportErrorKind,
 };
+pub use limits::ResourceLimits;
 pub use models::*;
 pub use secret::{SecretBytes, SecretString};
 pub use transport::{Header, HeaderValue, HttpMethod, Request, Response, Transport};
