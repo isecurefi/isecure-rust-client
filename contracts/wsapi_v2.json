@@ -1,0 +1,3500 @@
+{
+  "basePath": "/v2",
+  "definitions": {
+    "AccountDescriptor": {
+      "example": {
+        "AdminMode": "registered",
+        "Certs": [],
+        "DataMode": "unregistered",
+        "Email": "dan.forsberg@isecure.fi",
+        "Export": "allowed",
+        "Name": "Dan Forsberg",
+        "Phone": "+358404835507"
+      },
+      "properties": {
+        "AdminMode": {
+          "description": "`admin` mode status",
+          "enum": [
+            "registered",
+            "unregistered"
+          ],
+          "type": "string"
+        },
+        "Certs": {
+          "items": {
+            "$ref": "#/definitions/CertDescriptor"
+          },
+          "type": "array"
+        },
+        "DataMode": {
+          "description": "`data` mode status",
+          "enum": [
+            "registered",
+            "unregistered"
+          ],
+          "type": "string"
+        },
+        "Email": {
+          "description": "Email address as the account username",
+          "type": "string"
+        },
+        "Export": {
+          "description": "Status for certificate and private key export allowance. See ConfigCerts.",
+          "enum": [
+            "disabled",
+            "allowed"
+          ],
+          "type": "string"
+        },
+        "Name": {
+          "description": "Full name of registrant",
+          "type": "string"
+        },
+        "Phone": {
+          "description": "Phone number with country code and `+` in front",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Name",
+        "Email",
+        "Phone",
+        "Export",
+        "Certs"
+      ],
+      "type": "object"
+    },
+    "BankConnectionCertificateDescriptor": {
+      "description": "Minimal certificate status for bank connection discovery",
+      "properties": {
+        "Expires": {
+          "description": "Certificate expiry reported by the certificate parser",
+          "type": "string"
+        },
+        "Purpose": {
+          "description": "How the certificate is used for this bank connection",
+          "enum": [
+            "signing",
+            "encryption"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "Purpose",
+        "Expires"
+      ],
+      "type": "object"
+    },
+    "BankConnectionDescriptor": {
+      "description": "A bank connection the authenticated account can use",
+      "properties": {
+        "Access": {
+          "description": "Whether this account owns the bank certificates or uses certificates shared by its linked account",
+          "enum": [
+            "direct",
+            "shared"
+          ],
+          "type": "string"
+        },
+        "Bank": {
+          "description": "Public File Exchange API bank identifier",
+          "type": "string"
+        },
+        "Certificates": {
+          "description": "Minimal certificate status needed for connection discovery; certificate material and owner identity are omitted",
+          "items": {
+            "$ref": "#/definitions/BankConnectionCertificateDescriptor"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "Bank",
+        "Access",
+        "Certificates"
+      ],
+      "type": "object"
+    },
+    "CertDescriptor": {
+      "example": {
+        "CertName": "osuuspankki_customer_signing_cert",
+        "Expires": "Oct 28 06:30:08 2017 GMT",
+        "Issuer": "CUSTOMER TEST OP-Pohjola WS CA",
+        "PEM": "-----BEGIN CERTIFICATE-----\nMIIF+DCCA+CgAwIBAgIDEaBdMA0GCS...x0t6Cnd5lyGKg=\n-----END CERTIFICATE-----",
+        "Serial": "11A05D",
+        "Subject": "1000038023"
+      },
+      "properties": {
+        "CertName": {
+          "description": "Certificate common name",
+          "type": "string"
+        },
+        "Expires": {
+          "description": "Date of expiry",
+          "type": "string"
+        },
+        "Issuer": {
+          "description": "Certificate issuer",
+          "type": "string"
+        },
+        "PEM": {
+          "description": "Certificate in PEM format",
+          "type": "string"
+        },
+        "Serial": {
+          "description": "Certificate serial number",
+          "type": "string"
+        },
+        "Subject": {
+          "description": "Certificate subject",
+          "type": "string"
+        }
+      },
+      "required": [
+        "CertName",
+        "Expires",
+        "Subject",
+        "Issuer",
+        "Serial",
+        "PEM"
+      ],
+      "type": "object"
+    },
+    "CertsAndKeys": {
+      "properties": {
+        "Certificate": {
+          "description": "Certificate in PEM format",
+          "type": "string"
+        },
+        "EncryptedPrivateKey": {
+          "description": "PGP encrypted ascii armored private key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Certificate",
+        "EncryptedPrivateKey"
+      ],
+      "type": "object"
+    },
+    "ConfigCertsReq": {
+      "example": {
+        "Export": "disabled"
+      },
+      "properties": {
+        "Export": {
+          "description": "Set export to `disabled` to disallow certificate and private key pair exporting",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Export"
+      ],
+      "type": "object"
+    },
+    "DeleteKeyReq": {
+      "example": {
+        "PgpKeyId": "DBCBE671"
+      },
+      "properties": {
+        "PgpKeyId": {
+          "description": "8 chars hexadecimal PGP Key Id (see e.g. gpg --list-keys)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "PgpKeyId"
+      ],
+      "type": "object"
+    },
+    "DownloadFileResp": {
+      "example": {
+        "Content": "xxxxxxxx",
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "Content": {
+          "description": "Downloaded file content as from bank (e.g. in Base64 form)",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "Content"
+      ],
+      "type": "object"
+    },
+    "EnrollCertReq": {
+      "example": {
+        "Code": "8642603384107437",
+        "Company": "ISECURE OY",
+        "WsUserId": "..."
+      },
+      "properties": {
+        "Code": {
+          "description": "Full PIN code from bank (e.g. combined from SMS and letter)",
+          "type": "string"
+        },
+        "Company": {
+          "description": "Company name as registered with bank (e.g. full capital letters, see contract). **NOTE**: The value of this field is not compared with the account company name set during registration because the format for cert enrollment differs between banks.",
+          "type": "string"
+        },
+        "WsUserId": {
+          "description": "*SEPA WebServices* channel user id as in contract with bank",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code",
+        "Company",
+        "WsUserId"
+      ],
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "properties": {
+        "RequestId": {
+          "description": "Service side request id for problem tracing purposes",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ExportCertResp": {
+      "example": {
+        "CertsAndKeys": [],
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "CertsAndKeys": {
+          "description": "List of certificate and encrypted private key pairs",
+          "items": {
+            "$ref": "#/definitions/CertsAndKeys"
+          },
+          "type": "array"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "CertsAndKeys"
+      ],
+      "type": "object"
+    },
+    "FileDescriptor": {
+      "example": {
+        "FileReference": "227166",
+        "FileTimestamp": "2017-05-20T03:36:21.148+03:00",
+        "FileType": "VA",
+        "ServiceId": "N/A",
+        "Status": "NEW",
+        "TargetId": "MLP"
+      },
+      "properties": {
+        "FileReference": {
+          "description": "File reference id, use e.g. when downloading the file",
+          "type": "string"
+        },
+        "FileTimestamp": {
+          "description": "Creation time stamp of the file from bank",
+          "type": "string"
+        },
+        "FileType": {
+          "description": "Bank specific file type",
+          "type": "string"
+        },
+        "ServiceId": {
+          "description": "Bank specific service id (e.g. bank account number)",
+          "type": "string"
+        },
+        "Status": {
+          "description": "File download status",
+          "type": "string"
+        },
+        "TargetId": {
+          "description": "Bank specific target id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "FileType",
+        "Status",
+        "FileTimestamp",
+        "FileReference"
+      ],
+      "type": "object"
+    },
+    "ImportCertReq": {
+      "example": {
+        "Certificate": "...",
+        "Company": "ISECURE OY",
+        "EncCertificate": "...",
+        "EncPrivatekey": "...",
+        "PrivateKey": "...",
+        "WsUserId": "..."
+      },
+      "properties": {
+        "Certificate": {
+          "description": "Certificate in PEM format",
+          "type": "string"
+        },
+        "Company": {
+          "description": "Company name as registered with bank (e.g. full capital letters without Oy, see contract)",
+          "type": "string"
+        },
+        "EncCertificate": {
+          "description": "Certificate in PEM format (encryption certificate for DanskeBank)",
+          "type": "string"
+        },
+        "EncPrivatekey": {
+          "description": "Private key in PEM format (encryption certificate for DanskeBank)",
+          "type": "string"
+        },
+        "PrivateKey": {
+          "description": "Private key in PEM format",
+          "type": "string"
+        },
+        "WsUserId": {
+          "description": "*SEPA WebServices* channel user id as in contract with bank",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Company",
+        "WsUserId",
+        "PrivateKey",
+        "Certificate"
+      ],
+      "type": "object"
+    },
+    "InitLoginResp": {
+      "example": {
+        "Challenge": "9Ty4zrnJGqNH0i1+I0OTKHjTs03Ymd4tBH70FTiYNhA=|1494962070679|2646b71b-9b51-4d11-bf5e-cca5617bcfde",
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "Challenge": {
+          "description": "Challenge copied from API response",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "Challenge"
+      ],
+      "type": "object"
+    },
+    "InitRegisterResp": {
+      "example": {
+        "Challenge": "9Ty4zrnJGqNH0i1+I0OTKHjTs03Ymd4tBH70FTiYNhA=|1494962070679|2646b71b-9b51-4d11-bf5e-cca5617bcfde",
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "Challenge": {
+          "description": "Challenge copied from API response",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "Challenge"
+      ],
+      "type": "object"
+    },
+    "ListAccountsResp": {
+      "example": {
+        "Accounts": [],
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "Accounts": {
+          "description": "List of accounts under the API key",
+          "items": {
+            "$ref": "#/definitions/AccountDescriptor"
+          },
+          "type": "array"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "Accounts"
+      ],
+      "type": "object"
+    },
+    "ListCertsResp": {
+      "example": {
+        "Certs": [],
+        "Connections": [],
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "Certs": {
+          "description": "Legacy list of certificates directly owned by this account",
+          "items": {
+            "$ref": "#/definitions/CertDescriptor"
+          },
+          "type": "array"
+        },
+        "Connections": {
+          "description": "Effective bank connections, including same-API-key certificates shared by the linked owner",
+          "items": {
+            "$ref": "#/definitions/BankConnectionDescriptor"
+          },
+          "type": "array"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "Certs"
+      ],
+      "type": "object"
+    },
+    "ListFilesResp": {
+      "example": {
+        "FileDescriptors": [],
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "FileDescriptors": {
+          "description": "List of downloadable files from bank",
+          "items": {
+            "$ref": "#/definitions/FileDescriptor"
+          },
+          "type": "array"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "FileDescriptors"
+      ],
+      "type": "object"
+    },
+    "ListKeysResp": {
+      "example": {
+        "PgpKeys": [],
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "PgpKeys": {
+          "description": "List of PGP keys in API",
+          "items": {
+            "$ref": "#/definitions/PgpKeyDescriptor"
+          },
+          "type": "array"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "PgpKeys"
+      ],
+      "type": "object"
+    },
+    "LoginMFAReq": {
+      "example": {
+        "ChallengeName": "SMS_MFA",
+        "Code": "123456",
+        "Session": "...",
+        "SetupTOTP": false
+      },
+      "properties": {
+        "ChallengeName": {
+          "description": "Echo the `ChallengeName` returned by the login response (`SMS_MFA` or `SOFTWARE_TOKEN_MFA`). Optional; defaults to `SMS_MFA` when omitted",
+          "type": "string"
+        },
+        "Code": {
+          "description": "MFA code: SMS code (when ChallengeName is `SMS_MFA`) or authenticator/TOTP code (when `SOFTWARE_TOKEN_MFA`)",
+          "type": "string"
+        },
+        "Session": {
+          "description": "Session token from login response",
+          "type": "string"
+        },
+        "SetupTOTP": {
+          "description": "When `true`, a successful login also returns `SecretCode`, `OtpauthUri`, and `AccessToken` to begin Google Authenticator (TOTP) enrollment. Optional",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "Code",
+        "Session"
+      ],
+      "type": "object"
+    },
+    "LoginMFAResp": {
+      "example": {
+        "AccessToken": "eyJraWQiO...CzzcdcdAdEzKIcJPR7Fda0A",
+        "ApiKey": "4vN6hGHrav31smM0Ha1k15MDlZKOEGn43UToWTt2",
+        "ExpiresIn": "3600",
+        "IdToken": "eyJraWQiOiJ...jExlzbFU4GlGtml7AWQHDYi05IpA",
+        "OtpauthUri": "otpauth://totp/ISECure:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=ISECure",
+        "ResponseCode": "..",
+        "ResponseText": "..",
+        "SecretCode": "JBSWY3DPEHPK3PXP"
+      },
+      "properties": {
+        "AccessToken": {
+          "description": "Access token\\n- **Only** present when Email verification is required, or when `SetupTOTP` was requested (held by the client in memory only, posted back to `VerifyTOTP`)",
+          "type": "string"
+        },
+        "ApiKey": {
+          "description": "Integrator API Key\\n- **Not** present when Email verification is required",
+          "type": "string"
+        },
+        "ExpiresIn": {
+          "description": "Session expiration time\\n- **Not** present when Email verification is required",
+          "type": "string"
+        },
+        "IdToken": {
+          "description": "ID token\\n- **Not** present when Email verification is required",
+          "type": "string"
+        },
+        "OtpauthUri": {
+          "description": "`otpauth://` URI for rendering the enrollment QR code\\n- **Only** present when `SetupTOTP` was requested",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        },
+        "SecretCode": {
+          "description": "TOTP shared secret\\n- **Only** present when `SetupTOTP` was requested",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText"
+      ],
+      "type": "object"
+    },
+    "LoginReq": {
+      "example": {
+        "ChResp": "ezwXceQ63fV9oWTSJBAE2Zq1Cw5tBIJe+7+Rl8jrgbk=|1475429754114|4017bda8-0a15-4154-a8b7-88069b05cb4e",
+        "Encrypted": "..."
+      },
+      "properties": {
+        "ChResp": {
+          "description": "Challenge copied from API response",
+          "type": "string"
+        },
+        "Encrypted": {
+          "description": "RSA encrypted password and timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ChResp",
+        "Encrypted"
+      ],
+      "type": "object"
+    },
+    "LoginResp": {
+      "example": {
+        "AccessToken": "eyJraWQiO...CzzcdcdAdEzKIcJPR7Fda0A",
+        "ApiKey": "4vN6hGHrav31smM0Ha1k15MDlZKOEGn43UToWTt2",
+        "ChallengeName": "SOFTWARE_TOKEN_MFA",
+        "ExpiresIn": "3600",
+        "IdToken": "eyJraWQiOiJ...jExlzbFU4GlGtml7AWQHDYi05IpA",
+        "ResponseCode": "..",
+        "ResponseText": "..",
+        "Session": "xxxxxxxx"
+      },
+      "properties": {
+        "AccessToken": {
+          "description": "Access token\\n- **Not** present on MFA login initiation, i.e. `admin` mode\\n- **Only** present when Email verification is required",
+          "type": "string"
+        },
+        "ApiKey": {
+          "description": "Integrator API Key\\n- **Not** present on MFA login initiation, i.e. `admin` mode)",
+          "type": "string"
+        },
+        "ChallengeName": {
+          "description": "MFA challenge returned by Cognito\\n- **Only** present on MFA login initiation (`SMS_MFA` or `SOFTWARE_TOKEN_MFA`)",
+          "type": "string"
+        },
+        "ExpiresIn": {
+          "description": "Session expiration time\\n- **Not** present on MFA login initiation, i.e. `admin` mode)",
+          "type": "string"
+        },
+        "IdToken": {
+          "description": "ID token\\n- **Not** present on MFA login initiation, i.e. `admin` mode",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        },
+        "Session": {
+          "description": "Session token\\n- **Only** present on MFA login initiation, i.e. `admin` mode)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText"
+      ],
+      "type": "object"
+    },
+    "PasswordResetReq": {
+      "example": {
+        "ChResp": "ezwXceQ63fV9oWTSJBAE2Zq1Cw5tBIJe+7+Rl8jrgbk=|1475429754114|4017bda8-0a15-4154-a8b7-88069b05cb4e",
+        "Code": "123456",
+        "Encrypted": "..."
+      },
+      "properties": {
+        "ChResp": {
+          "description": "Challenge copied from API response",
+          "type": "string"
+        },
+        "Code": {
+          "description": "Code from SMS",
+          "type": "string"
+        },
+        "Encrypted": {
+          "description": "RSA encrypted NEW password and timestamp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code",
+        "ChResp",
+        "Encrypted"
+      ],
+      "type": "object"
+    },
+    "PgpKeyDescriptor": {
+      "example": {
+        "PgpKeyId": "3A3A59B2",
+        "PgpKeyPurpose": "authorize"
+      },
+      "properties": {
+        "PgpKeyId": {
+          "description": "Short version of a PGP Key id identifying the key, e.g. `3A3A59B2`",
+          "type": "string"
+        },
+        "PgpKeyPurpose": {
+          "description": "PGP Key purpose",
+          "enum": [
+            "export",
+            "authorize"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "PgpKeyId"
+      ],
+      "type": "object"
+    },
+    "RegisterReq": {
+      "example": {
+        "ApiKey": "hzYAVO9Sg98nsNh81M84O2kyXVy6K1xwHD8",
+        "ChResp": "ezwXceQ63fV9oWTSJBAE2Zq1Cw5tBIJe+7+Rl8jrgbk=|1475429754114|4017bda8-0a15-4154-a8b7-88069b05cb4e",
+        "Company": "ISECure Oy",
+        "Encrypted": "...",
+        "Name": "Dan Forsberg",
+        "Phone": "+358404835507"
+      },
+      "properties": {
+        "ApiKey": {
+          "description": "Integrator API Key, or `0` if not already known (e.g. initial integrator registration)",
+          "type": "string"
+        },
+        "ChResp": {
+          "description": "Challenge copied from API response",
+          "type": "string"
+        },
+        "Company": {
+          "description": "Company name",
+          "type": "string"
+        },
+        "Encrypted": {
+          "description": "RSA encrypted password and timestamp",
+          "type": "string"
+        },
+        "Name": {
+          "description": "Full name of registrant",
+          "type": "string"
+        },
+        "Phone": {
+          "description": "Phone number with country code and `+` in front",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Name",
+        "Phone",
+        "Company",
+        "ApiKey",
+        "ChResp",
+        "Encrypted"
+      ],
+      "type": "object"
+    },
+    "RegisterResp": {
+      "example": {
+        "ApiKey": "4vN6hGHrav31smM0Ha1k15MDlZKOEGn43UToWTt2",
+        "ResponseCode": "..",
+        "ResponseText": ".."
+      },
+      "properties": {
+        "ApiKey": {
+          "description": "Integrator API Key",
+          "type": "string"
+        },
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "ApiKey"
+      ],
+      "type": "object"
+    },
+    "Response": {
+      "properties": {
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText"
+      ],
+      "type": "object"
+    },
+    "ShareCertsResp": {
+      "example": {
+        "ResponseCode": "..",
+        "ResponseText": "..",
+        "SharedFrom": [],
+        "SharedTo": []
+      },
+      "properties": {
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        },
+        "SharedFrom": {
+          "description": "_ExtEmail_ account that this account shares certs from",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "SharedTo": {
+          "description": "_ExtEmail_ account that this account shares certs for",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "SharedTo",
+        "SharedFrom"
+      ],
+      "type": "object"
+    },
+    "UnshareCertsResp": {
+      "example": {
+        "ResponseCode": "..",
+        "ResponseText": "..",
+        "SharedFrom": [],
+        "SharedTo": []
+      },
+      "properties": {
+        "ResponseCode": {
+          "description": "Two digit response code in string format",
+          "type": "string"
+        },
+        "ResponseText": {
+          "description": "Human readable response text",
+          "type": "string"
+        },
+        "SharedFrom": {
+          "description": "_ExtEmail_ account that this account shares certs from",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "SharedTo": {
+          "description": "_ExtEmail_ account that this account shares certs for",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "ResponseCode",
+        "ResponseText",
+        "SharedTo",
+        "SharedFrom"
+      ],
+      "type": "object"
+    },
+    "UploadFileReq": {
+      "example": {
+        "FileContents": "...",
+        "FileName": "testfile",
+        "FileType": "KTL",
+        "Signature": "string"
+      },
+      "properties": {
+        "FileContents": {
+          "description": "Base64 encoded file contents",
+          "type": "string"
+        },
+        "FileName": {
+          "description": "Upload file name",
+          "type": "string"
+        },
+        "FileType": {
+          "description": "Bank specific file type",
+          "type": "string"
+        },
+        "Signature": {
+          "description": "Detached PGP signature(s) made with registered PGP key(s)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "FileContents",
+        "FileType",
+        "FileName",
+        "Signature"
+      ],
+      "type": "object"
+    },
+    "UploadKeyReq": {
+      "example": {
+        "PgpKey": "...",
+        "PgpKeyPurpose": "authorize"
+      },
+      "properties": {
+        "PgpKey": {
+          "description": "ASCII armored PGP Key",
+          "type": "string"
+        },
+        "PgpKeyPurpose": {
+          "description": "PGP key purpose, i.e. `export` (exporting cert private key) or `authorize` (upload content authorization verification).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "PgpKey",
+        "PgpKeyPurpose"
+      ],
+      "type": "object"
+    },
+    "VerifyEmailReq": {
+      "example": {
+        "AccessToken": "eyJraWQiO...CzzcdcdAdEzKIcJPR7Fda0A",
+        "Code": "123456"
+      },
+      "properties": {
+        "AccessToken": {
+          "description": "Access token from login response",
+          "type": "string"
+        },
+        "Code": {
+          "description": "Code from email",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code",
+        "AccessToken"
+      ],
+      "type": "object"
+    },
+    "VerifyPhoneReq": {
+      "example": {
+        "Code": "123456"
+      },
+      "properties": {
+        "Code": {
+          "description": "Code from SMS",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code"
+      ],
+      "type": "object"
+    },
+    "VerifyTOTPReq": {
+      "example": {
+        "AccessToken": "eyJraWQiO...CzzcdcdAdEzKIcJPR7Fda0A",
+        "Code": "123456"
+      },
+      "properties": {
+        "AccessToken": {
+          "description": "AccessToken returned by `LoginMFA` when `SetupTOTP` was requested (held by the client in memory only)",
+          "type": "string"
+        },
+        "Code": {
+          "description": "6-digit code from the authenticator app",
+          "type": "string"
+        }
+      },
+      "required": [
+        "Code",
+        "AccessToken"
+      ],
+      "type": "object"
+    }
+  },
+  "host": "ws-api.isecure.fi",
+  "info": {
+    "contact": {
+      "email": "dan.forsberg@isecure.fi",
+      "name": "ISECure Oy",
+      "url": "https://www.isecure.fi/"
+    },
+    "description": "The API provides secure file exchange with common banks in Finland via the *SEPA WebServices* channel, including certificate enrollment (PKI) and automatic certificate renewals.\n\nThe OpenAPI v2 specification is published on GitHub [isecurefi/wsapi-v2](https://github.com/isecurefi/wsapi-v2). Browser-compatible TypeScript SDK is available on GitHub [dforsber/isecure-ts-client](https://github.com/dforsber/isecure-ts-client). Command line CLI and PHP SDK remain available on GitHub [isecurefi/wscli-php](https://github.com/isecurefi/wscli-php).\n\n~~~ts\nimport { WSChannel } from \"isecure-ts-client\";\n\nconst client = new WSChannel({\n  ApiKey: process.env.ISECURE_API_KEY ?? \"0\",\n  Company: \"Example Company Oy\",\n  Name: \"Example User\",\n  Password: process.env.ISECURE_PASSWORD!,\n  Phone: \"+358401234567\",\n  PublicKey: process.env.ISECURE_PUBLIC_KEY_PEM!,\n  BaseUrl: \"https://ws-api.isecure.fi/v2\",\n  Email: \"user@example.com\",\n  Mode: \"data\",\n  Bank: \"nordea\",\n});\n\nconst state = await client.login();\nif (state.status === \"authenticated\") {\n  const { Connections = [] } = await client.listCerts();\n  for (const connection of Connections) {\n    console.log(connection.Bank, connection.Access);\n  }\n}\n~~~\n\n~~~sh\nexport SESSION=~/.wscli/settings.yaml\nwscli session login -c $SESSION\nexport APIKEY=$(yq -r .settings.apikey $SESSION)\nexport IDTOKEN=$(yq -r .settings.idtoken $SESSION)\n\ncurl -H Authorization:$IDTOKEN \\\n     -H x-api-key:$APIKEY \\\n     https://ws-api.isecure.fi/v2/files/danskebank\n~~~\n\nThe API provides role based access control (RBAC), user account management, password recovery, and SMS or authenticator-app (TOTP) multi-factor authentication based on Amazon Cognito user pools.\n\n*NOTE: The API endpoint for production is the same as for test, but without `test.` in the URL. Production and test APIs are deployed on separate AWS accounts.*\n\n*NOTE: The API runs on AWS API Gateway with AWS Lambda backends. Cold Lambda functions can add a small response delay. Banks can also have considerable processing delays, especially for certificate enrollments.*\n\n### Service enrollment\n\nEvery integrator (partner) has an own *API Key*, and every user account belongs to one integrator. The *API Key* is bound to the service subscription. In other words, a new production *API Key* requires a service agreement before file transfers are allowed.\n\nIf a user registers with `0` as the *API Key*, the API creates a new *API Key* and the user becomes the *API Key* owner. The owner account can list all users under the same *API Key* with the Integrator API. Integrators register their own owner account first and use its API key to register customer accounts.\n\n*NOTE: API call rate limits are set and tracked per API Key by AWS API Gateway.*\n\n### Account management\n\nA user email address can have an *admin* account, a *data* account, or both. The role in the API is called `mode`. The modes have separate passwords and different capabilities.\n\nLogin always requires both email address and mode. *Admin* mode login always requires MFA. Existing accounts may continue with SMS MFA, and accounts that have enrolled software-token MFA use authenticator-app/TOTP codes. *Data* mode uses password authentication and is suitable for automation. *Admin* mode configures the account, such as PGP keys and certificate sharing. *Data* mode exchanges files. Listing files is allowed in both modes.\n\n*NOTE: Integrators register customer accounts by using the API key from the API key owner account.*\n\n### Initial registration with TOTP\n\n1. Register the `admin` account first. Use `InitRegister` to get the challenge and `Register` to create the account.\n2. Login with `admin` mode. Complete the returned SMS MFA challenge with `LoginMFA`.\n3. Confirm phone with `VerifyPhone` and email with `VerifyEmail` when required. After verification, start a fresh login cycle.\n4. During an authenticated admin SMS MFA login, call `LoginMFA` with `SetupTOTP: true`. The response includes `SecretCode`, `OtpauthUri`, and an in-memory `AccessToken`.\n5. Show `OtpauthUri` as a QR code, or let the user enter `SecretCode` manually in an authenticator app.\n6. Submit the authenticator code and the returned `AccessToken` to `VerifyTOTP`. TOTP becomes the preferred admin MFA method; SMS remains available as a fallback.\n7. Register the `data` account with the same email and API key for automation/file transfer workflows.\n\n~~~ts\nconst registration = await adminClient.register();\nlet state = await adminClient.login();\n\nif (state.status === \"needs_mfa\" && state.method === \"sms\") {\n  state = await adminClient.submitMfaCode(smsCode, { setupTotp: true });\n}\n\nif (state.status === \"authenticated\" && state.totpEnrollment) {\n  const { otpauthUri, secret, accessToken } = state.totpEnrollment;\n  // Render otpauthUri as a QR code, or display secret for manual entry.\n  await adminClient.verifyTotp(accessToken, codeFromAuthenticatorApp);\n}\n~~~\n\n### Existing SMS MFA user migration to TOTP\n\n1. Login with the existing `admin` account.\n2. When `Login` returns `ChallengeName: SMS_MFA`, submit the SMS code with `LoginMFA` and set `SetupTOTP: true`.\n3. Add the returned `OtpauthUri` or `SecretCode` to the authenticator app.\n4. Confirm enrollment with `VerifyTOTP` using the returned `AccessToken` and the current authenticator code.\n5. Future admin logins normally return `ChallengeName: SOFTWARE_TOKEN_MFA`; submit the authenticator code through `LoginMFA`. SMS remains available as a fallback for accounts where Cognito still has SMS MFA enabled.\n\n~~~ts\nlet state = await adminClient.login();\nif (state.status === \"needs_mfa\" && state.method === \"sms\") {\n  state = await adminClient.submitMfaCode(smsCode, { setupTotp: true });\n}\nif (state.status === \"authenticated\" && state.totpEnrollment) {\n  await adminClient.verifyTotp(state.totpEnrollment.accessToken, authenticatorCode);\n}\n~~~\n\n### Bank certificate enrollment\n\nThe *SEPA WebServices* connection to the bank requires enrolling a PKI certificate with the bank. *Admin* mode can enroll certificates for different banks, but only one certificate per bank. The corresponding private key is generated and stored encrypted with AWS KMS.\n\n### Bank certificate sharing\n\nIt is possible to share the same bank certificate with multiple accounts. Certificate sharing can be configured when accounts have the same API key. The account that holds the certificate can share it with another account (*admin* mode operation). Only the account that owns the certificate can PGP-export the certificate and corresponding private key. This allows one *admin* mode account to own certificates and share them with multiple *data* mode accounts.\n\nAn account can never have multiple certificates per bank, whether shared or directly enrolled. The API identifies the bank, not an individual certificate/key pair.\n\n### Access security\n\nAccess is secured with TLS on AWS API Gateway. Inside TLS, register and login use challenge-response: the client fetches fresh username-specific parameters with `InitRegister` or `InitLogin`, RSA-encrypts the password and challenge timestamp with OAEP padding, and submits the encrypted value to `Register`, `Login`, or `PasswordReset`.\n\nSuccessful login returns a Cognito `IdToken` and the integrator `ApiKey`. For protected operations, send `Authorization: <IdToken>` and `x-api-key: <ApiKey>`. The OpenAPI document also models these headers as security schemes. If a generated client exposes both explicit header parameters and security settings, use the same values for both; the wire request must contain exactly those two headers.\n\nAdministrative actions require MFA authentication. SMS MFA remains available and TOTP can be enrolled with `LoginMFA` and confirmed with `VerifyTOTP`. User account management is handled with Cognito user pools. Each email can have separate `admin` and/or `data` mode Cognito users that share the same API account data.\n\n### Error handling and retryability\n\nSuccessful logical API responses have `ResponseCode: \"00\"`. Logical failures usually return `ResponseCode: \"01\"` with a human-readable `ResponseText` and `RequestId`. Include `RequestId` in support tickets.\n\nHTTP status still matters. `401`/`403` authentication and authorization failures are not retryable without changing credentials, token, role, API key, or verification state. `Invalid API key` is not retryable. Validation errors are not retryable without changing the request. Bank/backend integration errors may be retryable only when the text indicates a temporary upstream problem, timeout, throttling, or bank-side availability issue.\n\nThe TypeScript SDK throws typed transport errors for non-2xx responses and network failures, while API-level failures are returned as structured response objects or typed authentication states. Prefer the SDK for browser and Node.js integrations so MFA, retries, logging redaction, and session handling stay consistent. Browser clients use normal API methods through the TypeScript SDK. API Gateway also supports CORS preflight `OPTIONS` requests, but these are infrastructure-only and are not public API operations or SDK methods.\n\n### CHANGELOG\n\n**2.8.0** :: 2026-08-10\n- Added privacy-minimal effective bank connection discovery to `ListCerts`, including direct or shared access and certificate purpose/expiry status.\n- Kept legacy `Certs` direct-only and made `Connections` optional for compatible rollout.\n- Corrected `LoginMFA.SetupTOTP` to its runtime boolean type.\n\n**2.7.0** :: 2026-06-25\n- Added software-token/TOTP admin MFA (`LoginMFA` with `SetupTOTP` and `VerifyTOTP`) while keeping SMS MFA available.\n- Documented the browser-compatible TypeScript SDK.\n- Added browser CORS preflight support (`OPTIONS`) for the TypeScript SDK. `OPTIONS` is infrastructure-only and not a public SDK operation.\n\n**2.6.0** :: 2021-06-14\n- Added token revocation for logout (AWS SDK based new capability), no changes to the API itself.\n\n**2.5.0** :: 2020-04-19\n- Removed `OPTIONS` from the documented business API operations.\n- Fixed Login response.",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "termsOfService": "https://www.isecure.fi/ws-api-terms",
+    "title": "ISECure WS Channel API",
+    "version": "v2.8.0",
+    "x-logo": {
+      "backgroundColor": "#FFFFFF",
+      "url": "https://www.isecure.fi/images/isecure-small-logo.png"
+    }
+  },
+  "paths": {
+    "/account/{Email}/{Mode}": {
+      "get": {
+        "description": "Before register (or login), client must fetch `challenge` from the API. Then on register (or login), the challenge must be passed along to the API (as response to the challenge). The challenge is always fresh for some period of time and the API validates it when passed with register (or login). The challenge has form of `base64-string|timestamp|uuid`. For example:\\n\\n```ezwXceQ63fV9oWTSJBAE2Zq1Cw5tBIJe+7+Rl8jrgbk=|1475429754114|4017bda8-0a15-4154-a8b7-88069b05cb4e```\\n\\n**NOTE:** The call must contain the same email as used for registration itself.\\n",
+        "operationId": "InitRegister",
+        "parameters": [
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/InitRegisterResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "InitRegister",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": "curl -H 'Content-Type: application/json' https://ws-api.isecure.fi/v2/account/user%40example.com/admin"
+          },
+          {
+            "lang": "PHP",
+            "source": "$config = new Swagger\\\\Client\\\\Configuration();\\n$api = new Swagger\\\\Client\\\\Api\\\\AccountApi(new Swagger\\\\Client\\\\apiClient($config));\\n$api->InitRegister(\\\"user@example.com\\\", \\\"admin\\\");"
+          },
+          {
+            "lang": "C#",
+            "source": "InitRegisterResp r = account.InitRegister(\\\"user@example.com\\\", \\\"admin\\\");\\nreturn r.Challenge;"
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Provide the _Code_ received by email and the _AccessToken_ received during login. The access token is only used to complete verification and should not be persisted.\n\n**NOTE:** Phone and email verification bypass is an integrator-level policy option for deployments where the integrator has already verified those attributes. Contact ISECure support if this is required for your API key.",
+        "operationId": "VerifyEmail",
+        "parameters": [
+          {
+            "description": "Account parameters",
+            "in": "body",
+            "name": "VerifyEmailReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/VerifyEmailReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "VerifyEmail",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "You need to register both *admin* and *data* accounts with the same email address. Both accounts share the same data, but are used for different purposes. *Admin* account must be registered first, then *data* account.\\n\\n*Admin* account is used to configure setup with **Certs** and **Pgp** operations, while the *data* account is used with **Files** operations only. Both accounts use **Account** and **Session** operations.\\n\\n*Admin* account always requires MFA during login. SMS MFA remains available, and TOTP can be enrolled after SMS bootstrap. *Data* account does not require MFA. Generally, the *data* account is considered *read-only* when no PGP keys are configured, since PGP Keys are used to verify file upload signatures and are thus required to successfully upload files with **Files** *UploadFile* operation.\\n\\nRegistrations are independent for both accounts, *admin* and *data* and both require phone number and email verifications.\\n\\n`email` is the login username for both accounts and `mode` defines the selected \"mode\" for the login, i.e. *admin* or *data*.\\n\\nBefore registration client must fetch challenge from API (see Account InitRegister operation) and pass it back within the `ChResp` parameter.\\n\\nThe following parameters `name`, `phone`, and `company` are required and must be valid (`phone`, `email`) as they need to be confirmed before registration becomes successful and login possible.\\n\\nClient must RSA encrypt (OAEP padding) the _password_ and the challenge _timestamp_ as string in the form `password||timestamp`, base64 encode it and provide the resulting string as `Encrypted` parameter. The RSA encryption can be done e.g. for illustration purposes within command line with openssl rsautl:\\n```\\necho -n Toddler_..123456789012345\\\\|\\\\|1475175151231 |\\n\\topenssl rsautl -oaep -encrypt -pubin -inkey test.pem |\\n\\tbase64\\n\\n```\\n\\nThe **test** API's RSA public key is as follows:\\n\\n```\\n% cat test.pem\\n-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkuSaoSZztGAIGDTY7Rff\\npsBHJJT1k207UodOJbYFhHAq0lWJnvMPLl5Q1DUUZdTGtTdL8Dsaj/Bo2+gSykMM\\nR5QiKewvQsLfvqjwOO8JDItnhJl0lUqcPpdQV4M/Ai3YNRjNcVy4a+pichqtSAWl\\n9S1HV01MNeouk8PEr/zoUasmgfO3mz6N6XTUtF/tIi8K2kBOsLAtqltihFSd/zT8\\nifYZE9cZTJ09lUs7kMz1wxFIsiegaE1jUYV+VSLu3PJ97oKhQpqop8EnkBAoBl6r\\nmdmFryBQIdakPIdd4rO5Yg+to10n4u7Wij9ePIwWMfbqY4QoW5nXqMgFJQkIt4TG\\neQIDAQAB\\n-----END PUBLIC KEY-----\\n```\\n\\nThe **production** API's RSA public key is as follows:\\n\\n```\\n% cat prod.pem\\n-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7wx4l7P3eLsaEyK7ZRME\\ng5urEHwaEoY9LjkYcpMw9gmPIi3RoGjQX7HzPad2D7ES2yIGdmyxjN8R2LyFa8ke\\nEE+VY3ISYzP2cOjd/zDkX01yjDXQLRxntXbtqIypGQAzmZbCyIB226ZKEE+ldh6M\\nYyM41YWYikfocYssFEjY7fpPGeUg4FOmHmyWIZeMkXYovskoi1jZ1Ay1qn95XlpA\\n/Ptru2efro4T1xksv4WBBrj8bMNwdDpf4oyzH2PKYkn3/KlNTBCHlAmzP0jd4pIa\\nN0tAf2m8TcNq7kuBzyfs8AcCUj870p8SEiko0PMx6K+zVsTVWsxfUX+/+kmapmp/\\nAwIDAQAB\\n-----END PUBLIC KEY-----\\n```\\n\\n\\n\\n**NOTE:** Password must be at least 20 characters long, have lower and upper case letters, numbers, and special characters.\\n\\n**NOTE:** Phone number must be provided with country code, e.g. `+358404982201`.",
+        "operationId": "Register",
+        "parameters": [
+          {
+            "description": "Account parameters",
+            "in": "body",
+            "name": "RegisterReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RegisterReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/RegisterResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "Register",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/account/{Email}/{Mode}/password": {
+      "get": {
+        "description": "Start password reset for the selected email and mode. Cognito sends a confirmation code to the configured recovery channel. This flow is separate from admin login MFA.",
+        "operationId": "InitPasswordReset",
+        "parameters": [
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "InitPasswordReset",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Set a new _password_ for the selected email and mode. Provide the confirmation _Code_ from the password reset flow.\n\n**NOTE:** The new password must be RSA encrypted with the challenge timestamp; see Register for encryption details.",
+        "operationId": "PasswordReset",
+        "parameters": [
+          {
+            "description": "Account parameters",
+            "in": "body",
+            "name": "PasswordResetReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PasswordResetReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "PasswordReset",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/account/{Email}/{Mode}/{Phone}": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Confirm the phone number for the _Email_ and _Mode_ user with the _Code_ received by SMS.\n\n**NOTE:** Phone and email verification bypass is an integrator-level policy option for deployments where the integrator has already verified those attributes. Contact ISECure support if this is required for your API key.",
+        "operationId": "VerifyPhone",
+        "parameters": [
+          {
+            "description": "Account parameters",
+            "in": "body",
+            "name": "VerifyPhoneReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/VerifyPhoneReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Phone number with country code, e.g. `+358401234567`",
+            "in": "path",
+            "name": "Phone",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "VerifyPhone",
+        "tags": [
+          "Account"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/certs": {
+      "get": {
+        "description": "List bank connections visible to the authenticated account. Connections includes directly owned and same-API-key shared certificate status without exposing the linked owner or shared certificate material. The legacy Certs field remains limited to certificates directly owned by this account.",
+        "operationId": "ListCerts",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/ListCertsResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ListCerts",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Reserved admin operation for configuring certificate usage parameters such as private-key export policy. The current deployed implementation validates authorization and then returns `configcerts not yet implemented`; do not build production workflows that depend on this operation changing account state yet.",
+        "operationId": "ConfigCerts",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Certs handling settings",
+            "in": "body",
+            "name": "ConfigCertsReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ConfigCertsReq"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ConfigCerts",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/certs/shared/{ExtEmail}": {
+      "delete": {
+        "description": "Reserved admin operation for removing certificate sharing from an existing _ExtEmail_ account under the same API key. The current deployed implementation validates authorization and then returns `unlinkaccount not yet implemented`; contact ISECure support if certificate sharing must be removed before this operation is fully available.",
+        "operationId": "UnshareCerts",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Unshare certs with _ExtEMail_ account.",
+            "in": "path",
+            "name": "ExtEmail",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/UnshareCertsResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "UnshareCerts",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Share this account's bank certificates with an existing _ExtEmail_ account under the same API key. The caller must be authenticated in `admin` mode and must own the certificate being shared. The target account can then use the shared certificate for bank operations, but certificate/private-key export remains available only to the certificate owner.",
+        "operationId": "ShareCerts",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Share certs with _ExtEMail_ account.",
+            "in": "path",
+            "name": "ExtEmail",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/ShareCertsResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ShareCerts",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/certs/{Bank}": {
+      "get": {
+        "description": "Download bank certificate and private key encrypted with stored PGP key.\\n\\n**NOTE**: The previously uploaded `PgpKeyId` must have purpose type `export`. I.e. purpose type `authorize` PGP keys cannot be used for exporting.\\n\\n**NOTE**: If `export` has been set to `disabled` (see ConfigCerts), then exporting private keys is not possible through API.",
+        "operationId": "ExportCert",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, or `alandsbanken`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Short version of a PGP Key id identifying the exported Private Key, e.g. `3A3A59B2`",
+            "in": "query",
+            "name": "PgpKeyId",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/ExportCertResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ExportCert",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Provide WS-Channel user id, _WsUserId_, _Company_, and PIN _Code_ for _Bank_ certificate enrollment. _Company_ must match with the contract with the bank and is part of enrollment process. Note that certificate private key is securely generated and stored encrypted with AWS KMS encrypted authentication on API side. Certificates are automatically renewed when needed.\\n\\n**NOTE:** For OP bank, ensure that you set the PIN code blocks 1 and 2 in correct order. If not initially in correct order, bank will lock the registration and you need to call them for unlock.",
+        "operationId": "EnrollCert",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Certs parameters",
+            "in": "body",
+            "name": "EnrollCertReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/EnrollCertReq"
+            }
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, or `alandsbanken`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "EnrollCert",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Provide _WsUserId_, _Company_, _PrivateKey_, and _Certificate_ for importing existing WS Channel certificate and private key. _Company_ must match with the contract with the bank. Certificate(s) and private key(s) must be PEM formatted.\\n\\n**NOTE:** _EncCertificate_ and _EncPrivatekey_ are for DanskeBank only.",
+        "operationId": "ImportCert",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Certs parameters",
+            "in": "body",
+            "name": "ImportCertReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ImportCertReq"
+            }
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, or `alandsbanken`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ImportCert",
+        "tags": [
+          "Certs"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/files/{Bank}": {
+      "get": {
+        "description": "Ask the selected _Bank_ to list downloadable files matching filters. _Status_ can be e.g. _NEW_, _ALL_, or _DLD_. _FileType_ is bank specific (`ALL` is not accepted); see the bank specification. Returns a list of _FileDescriptors_.\n\n**NOTE:** Certificate must be enrolled before files can be listed, downloaded, or uploaded.\n\n**NOTE:** Uploaded files do not show up in the bank file listing.\n\n~~~sh\nexport SESSION=~/.wscli/settings.yaml\nwscli session login -c $SESSION\n\ncurl -H Authorization:$(yq -r .settings.idtoken $SESSION) \\\n     -H x-api-key:$(yq -r .settings.apikey $SESSION) \\\n     https://ws-api.isecure.fi/v2/files/danskebank\n~~~",
+        "operationId": "ListFiles",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, `alandsbanken` or `SEB`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Status of the *file*, e.g. `ALL`. `NEW`, `DLD`",
+            "in": "query",
+            "name": "Status",
+            "type": "string"
+          },
+          {
+            "description": "*Bank* specific *FileType* identifies the file type to be listed",
+            "in": "query",
+            "name": "FileType",
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/ListFilesResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ListFiles",
+        "tags": [
+          "Files"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Uploads file to bank if PGP signature(s) are valid. _FileContents_ is a string of _Base64_ encoded file contents. _FileType_ is bank specific. _Signature_ is detached PGP signature or concatenation of PGP detached signatures in ASCII armor format. PGP signatures are used for authorizing file uploads. Currently one valid PGP authorize registered key signature is enough. _FileName_ is upload filename.\\n\\n**NOTE:** The uploaded files do not show up on the file listing from bank.\\n\\n```\\n% export SESSION=~/.wscli/settings.yaml\\n% wscli session login -c $SESSION\\n% export APIKEY=`yq -r .settings.apikey $SESSION`\\n% export IDTOKEN=`yq -r .settings.idtoken $SESSION`\\n%\\n% curl -X PUT -H Content-Type:application/json \\\\ \\n       -H Authorization:$IDTOKEN \\\\ \\n       -H x-api-key:$APIKEY \\\\ \\n       -d @request-example.json \\\\ \\n       https://ws-api.isecure.fi/v2/files/danskebank\\n```\\n\\n",
+        "operationId": "UploadFile",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Files parameters",
+            "in": "body",
+            "name": "UploadFileReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UploadFileReq"
+            }
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, `alandsbanken` or `SEB`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "UploadFile",
+        "tags": [
+          "Files"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/files/{Bank}/{FileType}/{FileReference}": {
+      "delete": {
+        "description": "Delete or mark as deleted a bank-side file identified by _Bank_, _FileType_, and _FileReference_. Use values returned by ListFiles. Bank support and final semantics are bank-specific.",
+        "operationId": "DeleteFile",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, `alandsbanken` or `SEB`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "File reference *id* from list files",
+            "in": "path",
+            "name": "FileType",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "File reference *id* from list files",
+            "in": "path",
+            "name": "FileReference",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "DeleteFile",
+        "tags": [
+          "Files"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "get": {
+        "description": "Download a bank file identified by _Bank_, _FileType_, and _FileReference_. The file reference is received from ListFiles. The response Content field contains the file content returned by the bank, typically Base64 encoded.",
+        "operationId": "DownloadFile",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "*Bank* used for this operation, can have values of `nordea`, `osuuspankki`, `danskebank`, `aktia`, `sp`, `shb`, `pop`, `spankki`, `alandsbanken` or `SEB`.",
+            "in": "path",
+            "name": "Bank",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "File type from list files",
+            "in": "path",
+            "name": "FileType",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "File reference identifier from list files",
+            "in": "path",
+            "name": "FileReference",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/DownloadFileResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "DownloadFile",
+        "tags": [
+          "Files"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/integrator/accounts": {
+      "get": {
+        "description": "List accounts registered under the authenticated integrator API key. This is an API key owner/admin operation intended for integrators managing their own customer accounts.",
+        "operationId": "ListAccounts",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/ListAccountsResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ListAccounts",
+        "tags": [
+          "Integrator"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/pgp": {
+      "delete": {
+        "description": "Reserved admin operation for deleting a registered PGP key by 8-character key id. The current deployed implementation validates authorization and key lookup, but returns `pgpDelete is not yet supported`; do not build production workflows that rely on key deletion yet.",
+        "operationId": "DeleteKey",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Pgp parameters",
+            "in": "body",
+            "name": "DeleteKeyReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/DeleteKeyReq"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "DeleteKey",
+        "tags": [
+          "Pgp"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "get": {
+        "description": "List PGP public keys registered for the authenticated account. `authorize` keys verify UploadFile signatures. `export` keys encrypt exported certificate private keys.",
+        "operationId": "ListKeys",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/ListKeysResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "ListKeys",
+        "tags": [
+          "Pgp"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Upload an ASCII-armored PGP public key for the authenticated admin account. Use purpose `authorize` for detached UploadFile signature verification, or `export` for encrypting ExportCert private-key material. The same PGP key cannot be registered for both purposes at the same time.",
+        "operationId": "UploadKey",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "ASCII armored PGP Key in `PgpKey` and key purpose, i.e. `export` (exporting cert private key) or `authorize` (upload content authorization verification) in `PgpKeyPurpose`.\\n\\n**NOTE**: The same PGP key cannot be used for both `export` and `authorize` purpose at the same time.",
+            "in": "body",
+            "name": "UploadKeyReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UploadKeyReq"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Operation successfully processed. Resource created. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "UploadKey",
+        "tags": [
+          "Pgp"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/session/{Email}/{Mode}": {
+      "delete": {
+        "description": "Logout user.\\n\\n**NOTE**: AWS Cognito allows user logout, but the received authorization _IdToken_ **is still valid**. When the optional _AccessToken_ parameter is also provided, the _IdToken_ is also revoked.",
+        "operationId": "Logout",
+        "parameters": [
+          {
+            "description": "Use _IdToken_ from the Login response as the `Authorization` header",
+            "in": "header",
+            "name": "Authorization",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Use _ApiKey_ from the Login response as the `x-api-key` header",
+            "in": "header",
+            "name": "x-api-key",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "403": {
+            "description": "Unauthenticated",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "Authorizer": [],
+            "X-Api-Key": []
+          }
+        ],
+        "summary": "Logout",
+        "tags": [
+          "Session"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "get": {
+        "description": "Before login, client must fetch `challenge` from the API. Then on login, the challenge must be passed along to the API (as response to the challenge). The challenge is always fresh for some period of time and the API validates it when passed with login. The challenge has form of `base64-string|timestamp|uuid`. For example:\\n\\n```ezwXceQ63fV9oWTSJBAE2Zq1Cw5tBIJe+7+Rl8jrgbk=|1475429754114|4017bda8-0a15-4154-a8b7-88069b05cb4e```\\n\\n**NOTE:** The call must contain the same email as used for registration itself.",
+        "operationId": "InitLogin",
+        "parameters": [
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/InitLoginResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "InitLogin",
+        "tags": [
+          "Session"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "After `getchallenge`, call `login` with _Email_, _Mode_, and RSA encrypted _admin_ or _data_ account _password_ and _challenge timestamp_. For further API calls (requiring authorization), include the received _IdToken_ into the Authorization header of the request (pass idtoken as required parameter with the client SDK API calls). The _IdToken_ expires in _ExpiresIn_ seconds, after which new login must be performed.\n\n**NOTE:** In case MFA _Code_ is required, the call returns _Session_, _ChallengeName_, _ResponseCode_, and _ResponseText_ as the login process continues with the _LoginMFA_ API call. Echo _ChallengeName_ back to `LoginMFA` so the API can distinguish SMS (`SMS_MFA`) from authenticator/TOTP (`SOFTWARE_TOKEN_MFA`) codes.\n\n**NOTE:** If _Email_ has not been yet verified, successful login provides only _ResponseCode_, _ResponseText_, and an _AccessToken_ that must be used to verify email address.\n\n~~~sh\nCHALLENGE=$(curl -s https://ws-api.isecure.fi/v2/session/user@example.com/data | jq -r .Challenge)\nTIMESTAMP=$(echo $CHALLENGE | cut -f 2 -d \\|)\nENCRYPTED=$(echo -n testPassword..123455677098811\\|\\|$TIMESTAMP | openssl rsautl -oaep -encrypt -pubin -inkey prod.pem | base64)\n~~~",
+        "operationId": "Login",
+        "parameters": [
+          {
+            "description": "Login body parameters",
+            "in": "body",
+            "name": "LoginReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LoginReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/LoginResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "Login",
+        "tags": [
+          "Session"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/session/{Email}/{Mode}/mfacode": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Send MFA _Code_ along with the previously received _Session_ token. For SMS MFA use the SMS code; for software-token MFA use the authenticator/TOTP code and echo `ChallengeName: SOFTWARE_TOKEN_MFA`. If _Email_ has not been yet verified, successful login provides only _ResponseCode_, _ResponseText_, and an _AccessToken_ that must be used to verify email address. If email is already verified and the login succeeds, add the _IdToken_ from the login response as Authorization header in API requests requiring authorization (i.e. pass as parameter to client SDK API calls). _IdToken_ expires in _ExpiresIn_ seconds.",
+        "operationId": "LoginMFA",
+        "parameters": [
+          {
+            "description": "Session parameters",
+            "in": "body",
+            "name": "LoginMFAReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LoginMFAReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Administer account with `admin` mode, exchange files with `data` mode",
+            "enum": [
+              "admin",
+              "data"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/LoginMFAResp"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "LoginMFA",
+        "tags": [
+          "Session"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    },
+    "/session/{Email}/{Mode}/verifytotp": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Confirm Google Authenticator (TOTP) enrollment. After a `LoginMFA` call with `SetupTOTP: true`, scan the returned `OtpauthUri`/`SecretCode` into an authenticator app and submit the generated 6-digit _Code_ together with the _AccessToken_ from that login response. On success, TOTP becomes the preferred MFA factor (SMS remains enabled as a fallback). No phone number parameter is required.",
+        "operationId": "VerifyTOTP",
+        "parameters": [
+          {
+            "description": "Session parameters",
+            "in": "body",
+            "name": "VerifyTOTPReq",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/VerifyTOTPReq"
+            }
+          },
+          {
+            "description": "Email address as the account username, e.g. `user@example.com`",
+            "in": "path",
+            "name": "Email",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "TOTP enrollment is an `admin` mode operation",
+            "enum": [
+              "admin"
+            ],
+            "in": "path",
+            "name": "Mode",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation successfully processed. See response.",
+            "schema": {
+              "$ref": "#/definitions/Response"
+            }
+          },
+          "400": {
+            "description": "Request validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "500": {
+            "description": "Unexpected error occurred",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "summary": "VerifyTOTP",
+        "tags": [
+          "Session"
+        ],
+        "x-code-samples": [
+          {
+            "lang": "cURL",
+            "source": ""
+          },
+          {
+            "lang": "PHP",
+            "source": ""
+          },
+          {
+            "lang": "C#",
+            "source": ""
+          },
+          {
+            "lang": "Javascript",
+            "source": ""
+          }
+        ]
+      }
+    }
+  },
+  "schemes": [
+    "https"
+  ],
+  "securityDefinitions": {
+    "Authorizer": {
+      "description": "Successful login provides `IdToken` that must be provided in the `Authorization` header",
+      "in": "header",
+      "name": "Authorization",
+      "type": "apiKey"
+    },
+    "X-Api-Key": {
+      "description": "Integrator specific API Key. For all integrator customers, the API key must be the same.",
+      "in": "header",
+      "name": "x-api-key",
+      "type": "apiKey"
+    }
+  },
+  "swagger": "2.0",
+  "x-servers": [
+    {
+      "description": "Staging server",
+      "url": "https://ws-api.test.isecure.fi/v2/"
+    },
+    {
+      "description": "Production server",
+      "url": "https://ws-api.isecure.fi/v2/"
+    }
+  ],
+  "x-tagGroups": [
+    {
+      "name": "Admin account",
+      "tags": [
+        "Account",
+        "Pgp",
+        "Certs"
+      ]
+    },
+    {
+      "name": "Data account",
+      "tags": [
+        "Files"
+      ]
+    },
+    {
+      "name": "Common for both accounts",
+      "tags": [
+        "Session"
+      ]
+    }
+  ]
+}

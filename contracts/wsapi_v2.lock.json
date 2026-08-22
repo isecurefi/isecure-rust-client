@@ -1,0 +1,17 @@
+{
+  "contract": "ISECure REST API v2",
+  "source_repository": "isecurefi/isecure-ts-client",
+  "source_revision": "a0e88567bb141fef117588c5b3accf1d0c6c669f",
+  "source_path": "wsapi_v2.json",
+  "byte_length": 117245,
+  "sha256": "f36607360bac5c32f8b532691fdddc22eb809760ed9986678383d6dcb08d0004",
+  "typescript_oracle": {
+    "package": "isecure-ts-client",
+    "version": "2.1.0",
+    "api_types_sha256": "4bc17f325c8cdb59da9174714afc3b4c9a638dcd029f6730be3109348adbf1ef",
+    "auth_sha256": "2a003543678933d4bff85e9d8c51512442fe5634be6a20121f970a005bc8d1f3",
+    "client_sha256": "45b1e98e0401e331f79c7174c56f19fdbe243fdea3438df3b5818467eb1d340e",
+    "challenge_crypto_sha256": "a67eeca1bd66ed43403bb086aa8049c831004ee32a186a3e0db31cd58e69d23e",
+    "transport_sha256": "4ccaa9c9eab1bd0c0d536c946b42bc59c4198e26f58bb8bc1b166d6f4004f827"
+  }
+}

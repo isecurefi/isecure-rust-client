@@ -1,0 +1,61 @@
+#![doc = include_str!("../README.md")]
+#![forbid(unsafe_code)]
+
+mod auth;
+mod client;
+mod crypto;
+mod error;
+mod models;
+mod secret;
+mod transport;
+mod url;
+
+pub use auth::{AuthErrorReason, AuthState, AuthStep, MfaMethod, Session, TotpEnrollment};
+pub use client::{Client, ClientBuilder, ClientConfig, Clock, SystemClock};
+pub use crypto::{ChallengeEncryptor, RsaChallengeEncryptor};
+pub use error::{
+    Error, HttpError, LogicalError, ProtocolError, TransportError, TransportErrorKind,
+};
+pub use models::*;
+pub use secret::{SecretBytes, SecretString};
+pub use transport::{Header, HeaderValue, HttpMethod, Request, Response, Transport};
+
+/// SDK package version included in diagnostics and native transport user agents.
+pub const SDK_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// User-agent value available to caller-owned native HTTP transports.
+pub const USER_AGENT: &str = concat!("isecure-rust-client/", env!("CARGO_PKG_VERSION"));
+
+/// Exact Swagger operation IDs implemented from the pinned API contract.
+pub const OPENAPI_OPERATIONS: &[&str] = &[
+    "ConfigCerts",
+    "DeleteFile",
+    "DeleteKey",
+    "DownloadFile",
+    "EnrollCert",
+    "ExportCert",
+    "ImportCert",
+    "InitLogin",
+    "InitPasswordReset",
+    "InitRegister",
+    "ListAccounts",
+    "ListCerts",
+    "ListFiles",
+    "ListKeys",
+    "Login",
+    "LoginMFA",
+    "Logout",
+    "PasswordReset",
+    "Register",
+    "ShareCerts",
+    "UnshareCerts",
+    "UploadFile",
+    "UploadKey",
+    "VerifyEmail",
+    "VerifyPhone",
+    "VerifyTOTP",
+];
+
+/// Exact observed operations implemented beside, but not falsely attributed to,
+/// the pinned Swagger document.
+pub const OBSERVED_EXTENSION_OPERATIONS: &[&str] = &["SelectMfa"];

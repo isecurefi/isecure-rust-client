@@ -1,0 +1,41 @@
+[package]
+name = "isecure-rust-client"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Transport-neutral Rust SDK for ISECure REST API v2"
+license = "Unlicense"
+repository = "https://github.com/isecurefi/isecure-rust-client"
+keywords = ["isecure", "banking", "rest", "wasm"]
+categories = ["api-bindings", "web-programming::http-client"]
+publish = false
+readme = "README.md"
+
+[lib]
+name = "isecure_rust_client"
+path = "src/lib.rs"
+
+[dependencies]
+base64 = "=0.22.1"
+rand_core = "=0.6.4"
+rsa = { version = "=0.9.10", default-features = false, features = ["pem", "std"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha1 = { version = "=0.10.7", features = ["oid"] }
+zeroize = { version = "=1.9.0", features = ["derive"] }
+
+[dev-dependencies]
+futures-executor = "=0.3.34"
+rand_chacha = "=0.3.1"
+sha2 = "=0.10.9"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "deny"
+print_stderr = "deny"

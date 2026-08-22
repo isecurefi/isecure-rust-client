@@ -1,0 +1,31 @@
+{
+  "contract": "ISECure REST API v2 observed extensions",
+  "version": 1,
+  "source_repository": "isecurefi/isecure-ts-client",
+  "source_revision": "a0e88567bb141fef117588c5b3accf1d0c6c669f",
+  "wire_deviations": [
+    {
+      "definition": "LoginResp/LoginMFAResp",
+      "field": "ExpiresIn",
+      "pinned_openapi_type": "string",
+      "observed_gpgtest_types": ["number", "string"],
+      "sdk_behavior": "accept either non-negative integer form"
+    }
+  ],
+  "extensions": [
+    {
+      "operation_id": "SelectMfa",
+      "method": "PUT",
+      "path": "/session/{Email}/{Mode}/selectmfa",
+      "request": {
+        "required": ["MfaType", "Session"],
+        "mfa_type_values": ["SMS_MFA", "SOFTWARE_TOKEN_MFA"]
+      },
+      "response": {
+        "base_definition": "Response",
+        "optional_fields": ["ChallengeName", "MfaOptions", "Session", "SmsDestination"]
+      },
+      "status": "observed-public-contract"
+    }
+  ]
+}
