@@ -52,3 +52,30 @@ GitHub executes the commit. The command-component allowlist is test scaffolding,
 generated WIT Connector world or signed-plugin qualification.
 
 The resolved three-pass findings are recorded in `docs/reviews.md`.
+
+## Brokered Component facade follow-up
+
+On 2026-08-25, the SDK added the brokered facade for the first ISECure registration,
+authentication/MFA and parent connection-test package while retaining the direct native client.
+The compatibility lock pins platform WIT source revision
+`de7a15feb02b324d5f1c3d709ddddb722ad71b4c`, package
+`isecure:connector-runtime@2.0.0` and exact WIT SHA-256
+`60f02b20ce4a79a9fb4d4b3153ef3b603ad97d34f1cd5db36bf592db0343e2f2`.
+
+Focused and full local checks prove:
+
+- exact secret-free business plans and closed privileged preparation/capture mechanics;
+- direct/brokered auth, verification, typed response and stable error parity;
+- deterministic rejection of missing, extra, reordered, duplicate, wrong-operation, already-used and
+  unavailable bindings or values before unauthorized work;
+- no raw-secret or privileged-broker API in the business source and no transport/client capability in
+  the privileged source;
+- unchanged dependency graph and no SDK `unsafe` code; and
+- `wasm32-wasip2` library compilation plus real Wasmtime 48.0.0 execution of the shared brokered
+  contract runner. wasm-tools 1.257.1 validated the 352,201-byte Component under the 400,000-byte
+  budget with the exact retained `wasi:cli`/`wasi:io` command-harness allowlist and no clock,
+  filesystem, HTTP, random or socket import.
+
+The command harness proves SDK Wasm code generation, execution and import stability. It is not the
+generated production business/security WIT adapter, a signed package, host qualification or live
+provider qualification; those remain platform and application tasks.

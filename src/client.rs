@@ -15,7 +15,12 @@ use crate::{
     LimitError, LimitKind, ListAccountsResponse, ListCertificatesResponse, ListFilesQuery,
     ListFilesResponse, ListKeysResponse, LogicalError, MfaMethod, Mode, PasswordReset,
     PgpKeyPurpose, ProtocolError, RegistrationResult, Request, ResourceLimits, Response,
-    SecretBytes, SecretString, Session, Transport, UploadFileRequest, auth::classify_failure, url,
+    SecretBytes, SecretString, Session, Transport, UploadFileRequest,
+    auth::{
+        AuthResponseFacts, AuthTransition, VerificationTransition, classify_auth_response,
+        classify_failure, classify_verification_response,
+    },
+    url,
 };
 
 /// Time source used for deterministic session expiry.
@@ -875,7 +880,6 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
                 response,
             });
         }
-
         let current_access_token = wire.access_token.take().map(SecretString::new);
         if let Some(value) = current_access_token.as_ref() {
             self.pending.access_token = Some(SecretString::new(value.expose_secret()));
@@ -898,112 +902,96 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             self.pending.challenge_name = Some(value.clone());
         }
 
-        if let Some(id_token) = wire.id_token.take() {
-            let api_key = self
-                .pending
-                .api_key
-                .take()
-                .ok_or(Error::Protocol(ProtocolError::MissingValue))?;
-            let expires_in_seconds = wire
-                .expires_in
-                .take()
-                .map(WireU64::into_value)
-                .transpose()?;
-            let expires_at_epoch_seconds = expires_in_seconds
-                .map(|seconds| self.clock.now_epoch_seconds().saturating_add(seconds));
-            let totp_enrollment = match (
-                wire.secret_code.take(),
-                wire.otpauth_uri.take(),
-                current_access_token,
-            ) {
-                (Some(secret), Some(uri), Some(access_token)) => Some(crate::TotpEnrollment {
-                    secret: SecretString::new(secret),
-                    otpauth_uri: SecretString::new(uri),
-                    access_token,
-                }),
-                (None, None, _) => None,
-                _ => return Err(Error::Protocol(ProtocolError::MalformedResponse)),
-            };
-            self.session = Some(Session {
-                access_token: if totp_enrollment.is_none() {
-                    self.pending.access_token.take()
+        let transition = classify_auth_response(AuthResponseFacts {
+            response: &response,
+            has_current_access_token: current_access_token.is_some(),
+            has_api_key: self.pending.api_key.is_some(),
+            has_continuation: self.pending.continuation.is_some(),
+            has_id_token: wire.id_token.is_some(),
+            has_totp_secret: wire.secret_code.is_some(),
+            has_totp_uri: wire.otpauth_uri.is_some(),
+            challenge_name: wire.challenge_name.as_deref(),
+            mfa_options: wire.mfa_options.as_deref().unwrap_or_default(),
+            sms_destination: wire.sms_destination.as_deref(),
+        })?;
+
+        Ok(match transition {
+            AuthTransition::Authenticated { totp_enrollment } => {
+                let id_token = wire
+                    .id_token
+                    .take()
+                    .ok_or(Error::Protocol(ProtocolError::MissingValue))?;
+                let api_key = self
+                    .pending
+                    .api_key
+                    .take()
+                    .ok_or(Error::Protocol(ProtocolError::MissingValue))?;
+                let expires_in_seconds = wire
+                    .expires_in
+                    .take()
+                    .map(WireU64::into_value)
+                    .transpose()?;
+                let expires_at_epoch_seconds = expires_in_seconds
+                    .map(|seconds| self.clock.now_epoch_seconds().saturating_add(seconds));
+                let totp_enrollment = if totp_enrollment {
+                    Some(crate::TotpEnrollment {
+                        secret: SecretString::new(
+                            wire.secret_code
+                                .take()
+                                .ok_or(Error::Protocol(ProtocolError::MissingValue))?,
+                        ),
+                        otpauth_uri: SecretString::new(
+                            wire.otpauth_uri
+                                .take()
+                                .ok_or(Error::Protocol(ProtocolError::MissingValue))?,
+                        ),
+                        access_token: current_access_token
+                            .ok_or(Error::Protocol(ProtocolError::MissingValue))?,
+                    })
                 } else {
                     None
-                },
-                api_key,
-                expires_in_seconds,
-                expires_at_epoch_seconds,
-                id_token: SecretString::new(id_token),
-                continuation: self.pending.continuation.take(),
-            });
-            self.pending.challenge_name = None;
-            return Ok(AuthState::Authenticated {
-                mode: self.config.mode,
-                totp_enrollment,
-            });
-        }
-
-        let response_text = response.response_text.to_ascii_lowercase();
-        if response_text.contains("verify phone") {
-            return Ok(AuthState::NeedsPhoneVerification {
-                mode: self.config.mode,
-            });
-        }
-        if current_access_token.is_some() {
-            return Ok(AuthState::NeedsEmailVerification {
-                mode: self.config.mode,
-            });
-        }
-        if response_text.contains("verify email") {
-            return Ok(AuthState::Failed {
-                mode: self.config.mode,
-                reason: crate::auth::AuthErrorReason::MissingAccessToken,
-                response,
-            });
-        }
-        if wire.challenge_name.as_deref() == Some("SELECT_MFA_TYPE") {
-            let methods = wire
-                .mfa_options
-                .take()
-                .unwrap_or_default()
-                .iter()
-                .map(|value| {
-                    MfaMethod::from_cognito(value)
-                        .ok_or(Error::Protocol(ProtocolError::MalformedResponse))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            return Ok(AuthState::NeedsMfaSelection {
+                };
+                self.session = Some(Session {
+                    access_token: if totp_enrollment.is_none() {
+                        self.pending.access_token.take()
+                    } else {
+                        None
+                    },
+                    api_key,
+                    expires_in_seconds,
+                    expires_at_epoch_seconds,
+                    id_token: SecretString::new(id_token),
+                    continuation: self.pending.continuation.take(),
+                });
+                self.pending.challenge_name = None;
+                AuthState::Authenticated {
+                    mode: self.config.mode,
+                    totp_enrollment,
+                }
+            }
+            AuthTransition::NeedsMfaSelection {
+                methods,
+                sms_destination,
+            } => AuthState::NeedsMfaSelection {
                 mode: self.config.mode,
                 methods,
-                sms_destination: wire.sms_destination.take(),
-            });
-        }
-        if self.pending.continuation.is_some()
-            || response_text.contains("sms code")
-            || response_text.contains("authenticator code")
-        {
-            let method = wire.challenge_name.as_deref().map_or_else(
-                || {
-                    if response_text.contains("authenticator code") {
-                        Ok(MfaMethod::Totp)
-                    } else {
-                        Ok(MfaMethod::Sms)
-                    }
-                },
-                |value| {
-                    MfaMethod::from_cognito(value)
-                        .ok_or(Error::Protocol(ProtocolError::MalformedResponse))
-                },
-            )?;
-            return Ok(AuthState::NeedsMfa {
+                sms_destination,
+            },
+            AuthTransition::NeedsMfa { method } => AuthState::NeedsMfa {
                 mode: self.config.mode,
                 method,
-            });
-        }
-        Ok(AuthState::Failed {
-            mode: self.config.mode,
-            reason: classify_failure(&response),
-            response,
+            },
+            AuthTransition::NeedsEmailVerification => AuthState::NeedsEmailVerification {
+                mode: self.config.mode,
+            },
+            AuthTransition::NeedsPhoneVerification => AuthState::NeedsPhoneVerification {
+                mode: self.config.mode,
+            },
+            AuthTransition::Failed(reason) => AuthState::Failed {
+                mode: self.config.mode,
+                reason,
+                response,
+            },
         })
     }
 
@@ -1012,21 +1000,17 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         response: ApiResponse,
         step: crate::AuthStep,
     ) -> Result<AuthState, Error> {
-        if !crate::models::is_response_code(&response.response_code) {
-            return Err(Error::Protocol(ProtocolError::MalformedResponse));
-        }
-        if response.response_code == "00" {
-            Ok(AuthState::VerificationAccepted {
+        Ok(match classify_verification_response(&response)? {
+            VerificationTransition::Accepted => AuthState::VerificationAccepted {
                 mode: self.config.mode,
                 step,
-            })
-        } else {
-            Ok(AuthState::Failed {
+            },
+            VerificationTransition::Failed(reason) => AuthState::Failed {
                 mode: self.config.mode,
-                reason: classify_failure(&response),
+                reason,
                 response,
-            })
-        }
+            },
+        })
     }
 
     async fn auth_api_response<Q: Serialize + ?Sized>(
@@ -1099,7 +1083,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             self.config.limits.max_response_body_bytes(),
             LimitKind::ResponseBody,
         )?;
-        self.decode_response(response, expected_status)
+        decode_json_response(response, expected_status)
     }
 
     fn ensure_collection(&self, actual: usize) -> Result<(), Error> {
@@ -1116,29 +1100,6 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             self.config.limits.max_url_bytes(),
             LimitKind::Url,
         )
-    }
-
-    fn decode_response<R: DeserializeOwned>(
-        &self,
-        response: Response,
-        expected_status: u16,
-    ) -> Result<R, Error> {
-        if response.status != expected_status {
-            let fields = serde_json::from_slice::<ErrorWire>(response.body.expose_secret()).ok();
-            return Err(Error::Http(HttpError {
-                status: response.status,
-                response_code: fields
-                    .as_ref()
-                    .and_then(|value| value.response_code.as_deref())
-                    .filter(|value| crate::models::is_response_code(value))
-                    .map(str::to_owned),
-                request_id: fields
-                    .and_then(|value| value.request_id)
-                    .filter(|value| is_safe_request_id(value)),
-            }));
-        }
-        serde_json::from_slice(response.body.expose_secret())
-            .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))
     }
 
     fn headers(&self, authenticated: bool) -> Result<Vec<Header>, Error> {
@@ -1182,7 +1143,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
     }
 }
 
-fn ensure_logical(response_code: &str) -> Result<(), Error> {
+pub(crate) fn ensure_logical(response_code: &str) -> Result<(), Error> {
     if !crate::models::is_response_code(response_code) {
         return Err(Error::Protocol(ProtocolError::MalformedResponse));
     }
@@ -1196,12 +1157,34 @@ fn ensure_logical(response_code: &str) -> Result<(), Error> {
     }
 }
 
-fn ensure_limit(actual: usize, maximum: usize, kind: LimitKind) -> Result<(), Error> {
+pub(crate) fn ensure_limit(actual: usize, maximum: usize, kind: LimitKind) -> Result<(), Error> {
     if actual <= maximum {
         Ok(())
     } else {
         Err(Error::Limit(LimitError::new(kind)))
     }
+}
+
+pub(crate) fn decode_json_response<R: DeserializeOwned>(
+    response: Response,
+    expected_status: u16,
+) -> Result<R, Error> {
+    if response.status != expected_status {
+        let fields = serde_json::from_slice::<ErrorWire>(response.body.expose_secret()).ok();
+        return Err(Error::Http(HttpError {
+            status: response.status,
+            response_code: fields
+                .as_ref()
+                .and_then(|value| value.response_code.as_deref())
+                .filter(|value| crate::models::is_response_code(value))
+                .map(str::to_owned),
+            request_id: fields
+                .and_then(|value| value.request_id)
+                .filter(|value| is_safe_request_id(value)),
+        }));
+    }
+    serde_json::from_slice(response.body.expose_secret())
+        .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))
 }
 
 struct BoundedBody {
@@ -1261,7 +1244,7 @@ fn max_base64_len(raw_bytes: usize) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-fn is_safe_request_id(value: &str) -> bool {
+pub(crate) fn is_safe_request_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
         && value

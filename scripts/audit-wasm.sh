@@ -7,7 +7,6 @@ if [ -z "$wasm_tools_bin" ] || [ ! -x "$wasm_tools_bin" ]; then
     exit 2
 fi
 
-artifact=target/wasm32-wasip2/release/examples/wasm_contract.wasm
 maximum_bytes=${MAX_WASM_CONTRACT_BYTES:-400000}
 case "$maximum_bytes" in
     ''|*[!0-9]*)
@@ -20,7 +19,26 @@ if [ "$maximum_bytes" -eq 0 ]; then
     exit 2
 fi
 
-cargo build --locked --release --target wasm32-wasip2 --example wasm_contract
+messages=$(mktemp "${TMPDIR:-/tmp}/isecure-wasm-messages.XXXXXX")
+imports=$(mktemp "${TMPDIR:-/tmp}/isecure-wasm-imports.XXXXXX")
+cleanup() {
+    rm -f -- "$messages" "$imports"
+}
+trap cleanup EXIT HUP INT TERM
+
+cargo build --locked --release --target wasm32-wasip2 --example wasm_contract \
+    --message-format=json-render-diagnostics > "$messages"
+artifact=$(jq -r '
+    select(.reason == "compiler-artifact")
+    | select(.target.name == "wasm_contract")
+    | select(.target.kind | index("example"))
+    | .filenames[]
+    | select(endswith(".wasm"))
+' "$messages" | tail -n 1)
+if [ -z "$artifact" ] || [ ! -f "$artifact" ]; then
+    echo "Cargo did not report the Wasm contract artifact" >&2
+    exit 1
+fi
 "$wasm_tools_bin" validate "$artifact"
 
 actual_bytes=$(wc -c < "$artifact" | tr -d ' ')
@@ -29,17 +47,14 @@ if [ "$actual_bytes" -gt "$maximum_bytes" ]; then
     exit 1
 fi
 
-temporary=$(mktemp "${TMPDIR:-/tmp}/isecure-wasm-imports.XXXXXX")
-cleanup() {
-    rm -f -- "$temporary"
-}
-trap cleanup EXIT HUP INT TERM
 "$wasm_tools_bin" component wit "$artifact" \
     | sed -n 's/^  import \([^;]*\);$/\1/p' \
-    | LC_ALL=C sort > "$temporary"
-diff -u contracts/wasm-contract-imports.txt "$temporary"
+    | LC_ALL=C sort > "$imports"
+diff -u contracts/wasm-contract-imports.txt "$imports"
 
-if grep -Eq '^wasi:(clocks|filesystem|http|random|sockets)/' "$temporary"; then
+if grep -Eq '^wasi:(clocks|filesystem|http|random|sockets)/' "$imports"; then
     echo "Wasm contract gained a forbidden ambient capability" >&2
     exit 1
 fi
+
+printf '%s\n' "$artifact"

@@ -6,9 +6,11 @@ use std::{
 
 use futures_executor::block_on;
 use isecure_rust_client::{
-    AuthState, ChallengeEncryptor, Client, ClientConfig, Clock, Error, ListFilesQuery, Mode,
-    ProtocolError, Request, Response, RsaChallengeEncryptor, SecretBytes, SecretString, Transport,
-    TransportError, TransportErrorKind, UploadFileRequest,
+    AuthState, BrokerError, BrokeredOperation, BusinessFacade, ChallengeEncryptor, Client,
+    ClientConfig, Clock, Error, ListFilesQuery, Mode, ProtectedBinding, ProtectedValueKind,
+    ProtocolError, Request, RequestFieldPlacement, Response, RsaChallengeEncryptor, SecretBytes,
+    SecretString, SecurityFacade, SecurityPrepareInput, TransientSecret, Transport, TransportError,
+    TransportErrorKind, UploadFileRequest,
 };
 use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
 use serde::Deserialize;
@@ -106,6 +108,17 @@ impl ChallengeEncryptor for ContractEncryptor {
     }
 }
 
+struct ContractTransientSecret(Option<Vec<u8>>);
+
+impl TransientSecret for ContractTransientSecret {
+    fn read_once(&mut self) -> Result<SecretBytes, BrokerError> {
+        self.0
+            .take()
+            .map(SecretBytes::new)
+            .ok_or(BrokerError::AlreadyUsed)
+    }
+}
+
 struct ContractClock;
 
 impl Clock for ContractClock {
@@ -170,6 +183,44 @@ pub fn run() {
         )
         .expect("Wasm-compatible RSA challenge encryption");
     assert_eq!(ciphertext.expose_secret().len(), 344);
+
+    // The same command-component harness executes the brokered facade. This
+    // proves Wasm codegen and import closure; final generated WIT adaptation is
+    // owned by the platform Component-authoring task.
+    let opaque_password = 1_u8;
+    let plan = BusinessFacade::default()
+        .plan(
+            BrokeredOperation::Login,
+            &[ProtectedBinding::from_host(
+                ProtectedValueKind::Password,
+                &opaque_password,
+            )],
+        )
+        .expect("brokered business plan");
+    assert_eq!(plan.operation().operation_id(), "Login");
+    let mut security = SecurityFacade::new(
+        "host-owned fixture",
+        ContractEncryptor,
+        isecure_rust_client::ResourceLimits::default(),
+    )
+    .expect("brokered security facade");
+    let mut password = [ContractTransientSecret(Some(
+        b"Synthetic-password-123!".to_vec(),
+    ))];
+    let mutations = security
+        .prepare(
+            BrokeredOperation::Login,
+            SecurityPrepareInput::Challenge {
+                challenge: "bytes|1475429754114|fixture",
+            },
+            &mut password,
+        )
+        .expect("brokered security plan");
+    assert_eq!(mutations.len(), 2);
+    assert!(mutations.iter().all(|value| {
+        value.placement() == RequestFieldPlacement::Body
+            && matches!(value.field_id(), "ChResp" | "Encrypted")
+    }));
 
     let success_transport = transport([
         Ok(json_response(

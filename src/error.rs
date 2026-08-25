@@ -2,6 +2,19 @@
 
 use std::{error, fmt};
 
+/// Failure returned by the host-owned protected-value broker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrokerError {
+    /// The signed operation, stage, slot or purpose did not authorize the use.
+    Refused,
+    /// A one-use transient value was already consumed.
+    AlreadyUsed,
+    /// A signed host or guest resource bound was exceeded.
+    ResourceLimit,
+    /// Required protected-value custody is unavailable.
+    Unavailable,
+}
+
 /// Transport failure category supplied by the injected host.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransportErrorKind {
@@ -155,6 +168,8 @@ pub enum Error {
     Protocol(ProtocolError),
     /// A configured memory or collection bound was exceeded.
     Limit(LimitError),
+    /// The injected protected-value broker refused or could not perform an exact use.
+    Broker(BrokerError),
 }
 
 impl fmt::Display for Error {
@@ -175,6 +190,7 @@ impl fmt::Display for Error {
                 "ISECure resource limit exceeded ({:?})",
                 error.kind
             ),
+            Self::Broker(error) => write!(formatter, "ISECure broker failed ({error:?})"),
         }
     }
 }
@@ -190,6 +206,12 @@ impl From<TransportError> for Error {
 impl From<ProtocolError> for Error {
     fn from(value: ProtocolError) -> Self {
         Self::Protocol(value)
+    }
+}
+
+impl From<BrokerError> for Error {
+    fn from(value: BrokerError) -> Self {
+        Self::Broker(value)
     }
 }
 

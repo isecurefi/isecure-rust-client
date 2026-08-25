@@ -20,6 +20,28 @@ The caller still owns secure input, storage, screen rendering, clipboard policy,
 HTTP/TLS, DNS, proxy, redirect and certificate policy. WebAssembly hosts should release credentials
 through a bounded capability and destroy the instance after use. The SDK is not a vault.
 
+## Brokered Component boundary
+
+- The business facade contains no password, API-key, token, MFA-code or TOTP-seed value. It receives
+  generated opaque resources and safe structural capture presence only.
+- The security facade accepts a closed provider operation and exact input variant before reading any
+  transient value. Missing, extra, reordered, duplicate and wrong-operation values fail closed.
+- `TransientSecret::read_once` is the only raw-input port. Its owned bytes and every returned request
+  mutation use zeroizing wrappers and redact `Debug`.
+- `CaptureBroker::seal_captured` is the only response-custody port. The security facade never reads
+  an API key, access/ID token, continuation or TOTP enrollment value from the protected response
+  resource.
+- The host, not the SDK, authorizes the signed package/Component/tenant/entity/environment/
+  operation/stage/slot/purpose/destination/generation/use tuple. It also atomically rejects the whole
+  capture stage if any seal fails and enforces equality with an existing API-key domain.
+- Component adapters must discard request-mutation buffers and destroy the fresh security instance
+  after each bounded stage. They must never serialize these values into configuration, evidence,
+  diagnostics or business output.
+
+The SDK's closed enums are provider protocol vocabulary, not authority. A tenant cannot add an
+operation, field, endpoint or protected-value kind through these APIs. The signed composition and
+host checks remain mandatory even when the SDK rejects a malformed call first.
+
 ## WebAssembly resource boundary
 
 `ResourceLimits` provides SDK-side defense in depth for URLs, JSON bodies, decoded files,

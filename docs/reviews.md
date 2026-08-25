@@ -82,3 +82,53 @@ testing and automated Wasm gates.
 - Added one pinned CI job and fixed a review-discovered invalid `cargo audit fetch` command before
   completion. Strict Clippy, MSRV, native/Wasm builds, live synthetic compatibility, SBOM drift and
   the full gate pass with no SDK `unsafe` code.
+
+## Brokered Component facade follow-up
+
+Reviewed 2026-08-25 for `ISECURERUSTBROKER-001`. Findings were resolved before the final gate.
+
+### 1. Functional correctness and provider-authoring usability
+
+- Compared the closed operation plans and mutation fields with the direct client's exact registration,
+  password-recovery, login, MFA, verification and authenticated-header wire shapes. An initial MFA
+  implementation always emitted `ChallengeName`; review found the direct contract can omit it, so the
+  brokered input now preserves that optional state.
+- Review found the first draft lacked the verification-accepted transition. Extracted one shared
+  verification classifier and proved direct/brokered phone-verification parity.
+- Review found that a later business Component would otherwise need to duplicate account, certificate
+  and key-list decoding. Extracted the direct JSON decoder and logical/collection checks for exact
+  reuse by the three brokered parent-connection checks.
+- Added authenticated, MFA-selection, malformed partial-TOTP, HTTP-error and verification parity
+  fixtures, plus exact operation/stage/binding and generated-world lock tests.
+
+### 2. Authority, credential isolation, privacy and failure semantics
+
+- Kept the business source free of raw-secret wrappers, transient-secret access, request mutations,
+  capture broker access and the privileged facade. Opaque-reference canaries remain absent from debug
+  output and business results.
+- Validated operation/input shape and complete binding cardinality before reading a one-use value;
+  validated every capture kind and duplicate before the first broker call. Missing, extra, reordered,
+  wrong-operation, duplicate, unavailable and already-used cases fail closed with stable errors.
+- Made prior auth context derivable only from opaque host bindings. Captured values remain opaque and
+  can reach custody only through `CaptureBroker`; request outputs remain zeroizing and redacted.
+- Documented the mandatory host checks that the SDK cannot own: signed stage authority, atomic whole-
+  stage capture, existing API-key-domain equality, buffer disposal and fresh-instance destruction.
+
+### 3. KISS, DRY, Wasm and generated-contract drift
+
+- Preserved the direct `Client` and one protocol core. Direct and brokered paths now share typed models,
+  errors, limits, JSON decoding, logical checks and auth/verification classification; no second HTTP
+  client or workflow engine was introduced.
+- Split the 974-line mixed draft into one secret-free business module and one privileged security
+  module. This is an audit boundary inside the same crate, not a new public service, trait hierarchy,
+  feature flag or dependency.
+- Kept the facade limited to the first ISECure registration/authentication/parent-test package. It does
+  not introduce OAuth2, mTLS, discovery, tenant wiring or a general security-plugin framework.
+- Pinned the exact generated business/security WIT worlds and digest. The shared native/WASI runner now
+  executes brokered planning and preparation without changing its exact import allowlist.
+- Fixed the Wasm audit script to consume Cargo's reported artifact path, so repository-local and
+  direnv-managed external build caches use one portable gate without hardcoded cache paths.
+
+No finding remains in these three scopes. This review qualifies SDK implementation only; generated
+WIT adapters, the signed two-Component package, host coordinator, application integration and live
+Connector qualification remain separate tasks.

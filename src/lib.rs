@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 mod auth;
+mod brokered;
+mod brokered_security;
 mod client;
 mod crypto;
 mod error;
@@ -12,11 +14,20 @@ mod transport;
 mod url;
 
 pub use auth::{AuthErrorReason, AuthState, AuthStep, MfaMethod, Session, TotpEnrollment};
+pub use brokered::{
+    BrokeredAuthContext, BrokeredAuthState, BrokeredOperation, BusinessFacade, BusinessPlan,
+    CaptureSummary, ProtectedBinding, ProtectedValueKind, RegistrationKind, SanitizedAuthResponse,
+    SanitizedResponse, SecurityStage,
+};
+pub use brokered_security::{
+    CaptureBroker, ProtectedResponseField, RequestFieldPlacement, RequestMutation, SecurityFacade,
+    SecurityPrepareInput, TransientSecret,
+};
 pub use client::{Client, ClientBuilder, ClientConfig, Clock, SystemClock};
 pub use crypto::{ChallengeEncryptor, RsaChallengeEncryptor};
 pub use error::{
-    Error, HttpError, LimitError, LimitKind, LogicalError, ProtocolError, TransportError,
-    TransportErrorKind,
+    BrokerError, Error, HttpError, LimitError, LimitKind, LogicalError, ProtocolError,
+    TransportError, TransportErrorKind,
 };
 pub use limits::ResourceLimits;
 pub use models::*;

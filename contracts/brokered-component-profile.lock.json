@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "platform_repository": "bankfiles-platform",
+  "platform_source_revision": "de7a15feb02b324d5f1c3d709ddddb722ad71b4c",
+  "wit_path": "generated/connectors/wit/connector-runtime.wit",
+  "wit_package": "isecure:connector-runtime@2.0.0",
+  "wit_sha256": "60f02b20ce4a79a9fb4d4b3153ef3b603ad97d34f1cd5db36bf592db0343e2f2",
+  "business_world": {
+    "name": "connector-business-plugin",
+    "imports": ["contracts", "host-control", "business-host"],
+    "exports": ["connector-business"]
+  },
+  "security_world": {
+    "name": "connector-security-plugin",
+    "imports": ["security-broker"],
+    "exports": ["connector-security"]
+  },
+  "sdk_operations": [
+    "InitRegister",
+    "Register",
+    "InitPasswordReset",
+    "PasswordReset",
+    "InitLogin",
+    "Login",
+    "SelectMfa",
+    "LoginMFA",
+    "VerifyEmail",
+    "VerifyPhone",
+    "VerifyTOTP",
+    "ListAccounts",
+    "ListCerts",
+    "ListKeys",
+    "Logout"
+  ]
+}

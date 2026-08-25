@@ -212,3 +212,121 @@ pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
         AuthErrorReason::Unknown
     }
 }
+
+/// Secret-free facts used by both direct and brokered authentication paths.
+pub(crate) struct AuthResponseFacts<'a> {
+    pub response: &'a ApiResponse,
+    pub has_current_access_token: bool,
+    pub has_api_key: bool,
+    pub has_continuation: bool,
+    pub has_id_token: bool,
+    pub has_totp_secret: bool,
+    pub has_totp_uri: bool,
+    pub challenge_name: Option<&'a str>,
+    pub mfa_options: &'a [String],
+    pub sms_destination: Option<&'a str>,
+}
+
+/// Common value-free authentication transition. Secret custody is deliberately
+/// applied by the direct or brokered caller after this classification.
+pub(crate) enum AuthTransition {
+    Authenticated {
+        totp_enrollment: bool,
+    },
+    NeedsMfaSelection {
+        methods: Vec<MfaMethod>,
+        sms_destination: Option<String>,
+    },
+    NeedsMfa {
+        method: MfaMethod,
+    },
+    NeedsEmailVerification,
+    NeedsPhoneVerification,
+    Failed(AuthErrorReason),
+}
+
+pub(crate) enum VerificationTransition {
+    Accepted,
+    Failed(AuthErrorReason),
+}
+
+pub(crate) fn classify_verification_response(
+    response: &ApiResponse,
+) -> Result<VerificationTransition, crate::ProtocolError> {
+    if !crate::models::is_response_code(&response.response_code) {
+        return Err(crate::ProtocolError::MalformedResponse);
+    }
+    if response.response_code == "00" {
+        Ok(VerificationTransition::Accepted)
+    } else {
+        Ok(VerificationTransition::Failed(classify_failure(response)))
+    }
+}
+
+pub(crate) fn classify_auth_response(
+    facts: AuthResponseFacts<'_>,
+) -> Result<AuthTransition, crate::ProtocolError> {
+    if !crate::models::is_response_code(&facts.response.response_code) {
+        return Err(crate::ProtocolError::MalformedResponse);
+    }
+    if facts.response.response_code != "00" {
+        return Ok(AuthTransition::Failed(classify_failure(facts.response)));
+    }
+
+    if facts.has_id_token {
+        if !facts.has_api_key {
+            return Err(crate::ProtocolError::MissingValue);
+        }
+        let totp_enrollment = match (
+            facts.has_totp_secret,
+            facts.has_totp_uri,
+            facts.has_current_access_token,
+        ) {
+            (true, true, true) => true,
+            (false, false, _) => false,
+            _ => return Err(crate::ProtocolError::MalformedResponse),
+        };
+        return Ok(AuthTransition::Authenticated { totp_enrollment });
+    }
+
+    let response_text = facts.response.response_text.to_ascii_lowercase();
+    if response_text.contains("verify phone") {
+        return Ok(AuthTransition::NeedsPhoneVerification);
+    }
+    if facts.has_current_access_token {
+        return Ok(AuthTransition::NeedsEmailVerification);
+    }
+    if response_text.contains("verify email") {
+        return Ok(AuthTransition::Failed(AuthErrorReason::MissingAccessToken));
+    }
+    if facts.challenge_name == Some("SELECT_MFA_TYPE") {
+        let methods = facts
+            .mfa_options
+            .iter()
+            .map(|value| {
+                MfaMethod::from_cognito(value).ok_or(crate::ProtocolError::MalformedResponse)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return Ok(AuthTransition::NeedsMfaSelection {
+            methods,
+            sms_destination: facts.sms_destination.map(str::to_owned),
+        });
+    }
+    if facts.has_continuation
+        || response_text.contains("sms code")
+        || response_text.contains("authenticator code")
+    {
+        let method = facts.challenge_name.map_or_else(
+            || {
+                if response_text.contains("authenticator code") {
+                    Ok(MfaMethod::Totp)
+                } else {
+                    Ok(MfaMethod::Sms)
+                }
+            },
+            |value| MfaMethod::from_cognito(value).ok_or(crate::ProtocolError::MalformedResponse),
+        )?;
+        return Ok(AuthTransition::NeedsMfa { method });
+    }
+    Ok(AuthTransition::Failed(classify_failure(facts.response)))
+}

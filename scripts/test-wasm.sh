@@ -15,5 +15,5 @@ if [ -z "$wasm_tools_bin" ] || [ ! -x "$wasm_tools_bin" ]; then
     exit 2
 fi
 
-WASM_TOOLS_BIN="$wasm_tools_bin" scripts/audit-wasm.sh
-"$wasmtime_bin" run -C cache=n target/wasm32-wasip2/release/examples/wasm_contract.wasm
+artifact=$(WASM_TOOLS_BIN="$wasm_tools_bin" scripts/audit-wasm.sh)
+"$wasmtime_bin" run -C cache=n "$artifact"

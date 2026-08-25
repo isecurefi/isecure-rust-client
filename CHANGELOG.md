@@ -11,3 +11,6 @@
 - Exact-byte file upload and download with Base64 confined to the REST wire.
 - One shared native/WASI contract suite, deterministic mutation tests, pinned Wasm tools, import and
   size auditing, and mandatory CI verification.
+- Secret-free business planning and a narrow injected privileged broker facade for the signed
+  two-Component ISECure registration/authentication/connection-check seam, while preserving the
+  direct native client and shared protocol/authentication core.

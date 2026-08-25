@@ -19,6 +19,16 @@ Base64 wire encoding, so Connector code does not maintain a second encoding path
 The SDK owns only the provider protocol. It does not own HTTP sockets, credential storage, retries,
 financial rules, approvals, bank signing keys, application configuration or plugin authority.
 
+It offers two protocol front ends over the same models, limits, errors and authentication
+classifier:
+
+- `Client` is the existing direct client for a trusted native caller. It owns zeroizing credentials
+  and session values in process memory and uses an injected `Transport`.
+- `BusinessFacade` and `SecurityFacade` are the brokered Component seam. The business side receives
+  only safe data and opaque host resources. The privileged side can read an exact one-use value,
+  place it in an admitted ISECure field, or ask the host broker to seal an exact response value. It
+  owns no durable state and opens no connection.
+
 ## Design
 
 Create a `Client<T, E>` with three caller-owned capabilities:
@@ -62,6 +72,33 @@ Call `login()`, inspect `AuthState`, and invoke only the indicated next transiti
 tokens in memory, rejects a returned API key that differs from the configured security domain and
 refuses authenticated work after local expiry. `logout()` is the sole operation allowed to use a
 locally expired session.
+
+## Brokered Component facade
+
+The brokered facade is intentionally narrower than the direct client. It covers the first signed
+ISECure package: Admin/Data registration, password recovery, authentication and MFA, plus
+authenticated account/key/certificate-list connection checks. Later file and certificate workflows
+continue to use the shared protocol core but are not admitted through this security facade yet.
+
+`BusinessFacade::plan` checks the exact ordered protected-value kinds and emits a short typed stage
+list. A `ProtectedBinding` borrows a generated WIT `protected-reference`; it has no method that
+reveals the host resource or credential bytes. `complete_authentication` consumes only sanitized
+provider fields and structural capture evidence, then uses the same auth classifier as `Client`.
+
+`SecurityFacade::prepare` accepts only closed ISECure operations and inputs. It reads each injected
+`TransientSecret` once into a zeroizing buffer and emits only the exact `ChResp`, `Encrypted`, MFA,
+verification, `Authorization` or `x-api-key` mutation required by that operation.
+`SecurityFacade::capture` never reads a provider credential: it passes an opaque protected response
+resource to the injected `CaptureBroker`. The host must enforce signed package, Component, tenant,
+legal-entity, environment, operation, stage, slot, purpose, destination, generation and use-count
+authority, including API-key equality when a security domain already exists.
+
+The facades do not implement WIT bindings. The generated platform adapter maps the signed
+`connector-business-plugin` and `connector-security-plugin` worlds to these Rust types. The exact
+compatible WIT revision and digest are pinned in
+`contracts/brokered-component-profile.lock.json`. Components still never call one another; the host
+invokes and mediates every stage. OAuth2, mTLS, generic security-plugin discovery and tenant-defined
+wiring remain outside this SDK and this first ISECure seam.
 
 ## Build and test
 
