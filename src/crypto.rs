@@ -1,5 +1,7 @@
 //! ISECure RSA-OAEP challenge encryption.
 
+use alloc::vec::Vec;
+
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use rand_core::CryptoRngCore;
 use rsa::{Oaep, RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};

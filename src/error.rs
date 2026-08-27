@@ -1,6 +1,7 @@
 //! Structured SDK errors without provider payload leakage.
 
-use std::{error, fmt};
+use alloc::string::String;
+use core::{error, fmt};
 
 /// Failure returned by the host-owned protected-value broker.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -5,7 +5,8 @@
 //! platform operation, stage and slot identifiers into these closed provider
 //! protocol enums.
 
-use std::fmt;
+use alloc::{string::String, vec::Vec};
+use core::fmt;
 
 use crate::{
     ApiResponse, AuthErrorReason, AuthStep, Error, HttpError, LimitKind, ListAccountsResponse,
@@ -15,7 +16,7 @@ use crate::{
         AuthResponseFacts, AuthTransition, VerificationTransition, classify_auth_response,
         classify_verification_response,
     },
-    client::{decode_json_response, ensure_limit, ensure_logical, is_safe_request_id},
+    protocol::{decode_json_response, ensure_limit, ensure_logical, is_safe_request_id},
 };
 
 /// Registration relationship for the exact ISECure REST operation.

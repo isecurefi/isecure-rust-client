@@ -4,10 +4,11 @@ set -eu
 cargo fmt --all --check
 cargo check --locked --all-targets
 cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo clippy --locked --no-default-features --target wasm32-wasip2 -- -D warnings
 cargo test --locked --all-targets
 cargo test --locked --doc
 cargo build --locked --release
-cargo build --locked --release --target wasm32-wasip2 --lib
+cargo build --locked --release --no-default-features --target wasm32-wasip2 --lib
 cargo audit --no-fetch --ignore RUSTSEC-2023-0071
 scripts/generate-sbom.sh
 git diff --exit-code -- sbom.cdx.json

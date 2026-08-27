@@ -1,6 +1,7 @@
 //! HTTP-shaped transport contract injected by native or WebAssembly hosts.
 
-use std::{fmt, future::Future};
+use alloc::{string::String, vec::Vec};
+use core::{fmt, future::Future};
 
 use crate::{SecretBytes, SecretString, TransportError};
 

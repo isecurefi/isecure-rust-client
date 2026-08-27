@@ -79,3 +79,18 @@ Focused and full local checks prove:
 The command harness proves SDK Wasm code generation, execution and import stability. It is not the
 generated production business/security WIT adapter, a signed package, host qualification or live
 provider qualification; those remain platform and application tasks.
+
+## Managed security Component follow-up
+
+On 2026-08-27, the brokered core was made available as `no_std` plus `alloc` while the direct native
+client remained the default `std` API. Strict Clippy and release builds passed for
+`wasm32-wasip2` with default features disabled. The platform's real ISECure security Component then
+wrapped `SecurityFacade` behind the generated managed security world. Exact Component inspection
+reported one import, `isecure:connector-runtime/security-broker@2.0.0`, and one export,
+`isecure:connector-runtime/connector-security@2.0.0`; no WASI command, I/O, socket, filesystem,
+clock, random or ambient HTTP import was present.
+
+The host still owns entropy, transient-secret release, response inspection, capture, durable
+custody, authority and transport. This evidence qualifies the SDK boundary and deterministic build
+path only. Signed-package admission, application deployment and live provider qualification remain
+platform tasks.

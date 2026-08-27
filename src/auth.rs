@@ -1,7 +1,9 @@
 //! Typed authentication and verification state.
 
+use alloc::{borrow::ToOwned, string::String, vec::Vec};
+use core::fmt;
+
 use crate::{ApiResponse, Mode, SecretString};
-use std::fmt;
 
 /// Multi-factor method selected by ISECure/Cognito.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

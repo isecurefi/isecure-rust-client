@@ -45,7 +45,10 @@ Connector profile may supply explicit non-zero limits; the Wasm host must still 
 before copying them into guest memory.
 
 The core crate opens no sockets or files, starts no runtime and depends on neither Tokio nor an HTTP
-library. The same code builds for native Rust and `wasm32-wasip2`.
+library. Native callers use the default `std` feature. A managed security Component disables default
+features and receives only the broker capabilities supplied by its generated WIT world; the shared
+brokered protocol core then builds for `wasm32-wasip2` without importing WASI command, I/O, socket,
+filesystem, clock, random or ambient HTTP capabilities.
 
 ```rust
 use isecure_rust_client::{ClientConfig, Mode, SecretString};
@@ -107,7 +110,8 @@ cargo fmt --all --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets
 cargo build --locked --release
-cargo build --locked --release --target wasm32-wasip2 --lib
+cargo clippy --locked --no-default-features --target wasm32-wasip2 -- -D warnings
+cargo build --locked --release --no-default-features --target wasm32-wasip2 --lib
 scripts/install-wasm-toolchain.sh /absolute/private/tool-directory
 WASMTIME_BIN=/path/to/wasmtime WASM_TOOLS_BIN=/path/to/wasm-tools scripts/test-wasm.sh
 ```
@@ -119,6 +123,10 @@ timeout, host-owned retry and secret-safe debug output. The gate also validates 
 checks its exact import allowlist and enforces a 400,000-byte regression budget. The native suite
 additionally covers exact operations, resource-limit boundaries, URL encoding, API-key
 substitution, expiry, RSA interoperability and deterministic mutation fuzzing.
+
+The command example deliberately keeps its small WASI command harness. Production managed
+Components use `default-features = false`; platform qualification inspects the finished Component
+and rejects every import outside its exact generated broker contract.
 
 The pinned Swagger bytes, source revision, digest and observed deviations live under `contracts/`.
 `tests/openapi_contract.rs` rejects contract, operation or schema inventory drift.

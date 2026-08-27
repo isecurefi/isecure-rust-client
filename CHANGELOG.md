@@ -14,3 +14,5 @@
 - Secret-free business planning and a narrow injected privileged broker facade for the signed
   two-Component ISECure registration/authentication/connection-check seam, while preserving the
   direct native client and shared protocol/authentication core.
+- A `no_std` plus `alloc` brokered core for managed WebAssembly security Components, with the native
+  direct client retained behind the default `std` feature and a strict no-default-feature Wasm gate.

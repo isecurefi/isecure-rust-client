@@ -11,18 +11,30 @@ categories = ["api-bindings", "web-programming::http-client"]
 publish = false
 readme = "README.md"
 
+[features]
+default = ["std"]
+std = [
+    "base64/std",
+    "rand_core/std",
+    "rsa/std",
+    "serde/std",
+    "serde_json/std",
+    "sha1/std",
+    "zeroize/std",
+]
+
 [lib]
 name = "isecure_rust_client"
 path = "src/lib.rs"
 
 [dependencies]
-base64 = "=0.22.1"
-rand_core = "=0.6.4"
-rsa = { version = "=0.9.10", default-features = false, features = ["pem", "std"] }
-serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.151"
-sha1 = { version = "=0.10.7", features = ["oid"] }
-zeroize = { version = "=1.9.0", features = ["derive"] }
+base64 = { version = "=0.22.1", default-features = false, features = ["alloc"] }
+rand_core = { version = "=0.6.4", default-features = false }
+rsa = { version = "=0.9.10", default-features = false, features = ["pem"] }
+serde = { version = "=1.0.229", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "=1.0.151", default-features = false, features = ["alloc"] }
+sha1 = { version = "=0.10.7", default-features = false, features = ["oid"] }
+zeroize = { version = "=1.9.0", default-features = false, features = ["alloc", "derive"] }
 
 [dev-dependencies]
 futures-executor = "=0.3.34"

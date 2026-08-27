@@ -132,3 +132,38 @@ Reviewed 2026-08-25 for `ISECURERUSTBROKER-001`. Findings were resolved before t
 No finding remains in these three scopes. This review qualifies SDK implementation only; generated
 WIT adapters, the signed two-Component package, host coordinator, application integration and live
 Connector qualification remain separate tasks.
+
+## Managed security Component follow-up
+
+Reviewed 2026-08-27 for the SDK part of `ISECURESEC-001`. Findings were resolved before the final
+gate.
+
+### 1. Functional correctness and provider-authoring usability
+
+- Preserved the default `Client` API and its native behavior while making only the shared brokered
+  protocol path available without `std`.
+- Moved shared response decoding, request-ID validation, logical-result checks and collection limits
+  into one protocol module so direct and brokered callers still classify identical provider bytes.
+- Added explicit strict Clippy and release-build gates for the exact no-default-feature
+  `wasm32-wasip2` configuration used by a managed security Component.
+
+### 2. Authority, credential isolation, privacy and failure semantics
+
+- Verified the SDK remains entirely `unsafe`-free and receives cryptographic randomness only through
+  the caller-owned `CryptoRngCore`; it does not gain ambient randomness while becoming `no_std`.
+- Exact inspection of the platform adapter found only the generated security-broker import. Secret
+  access, capture, transport, durable custody and authority remain host-mediated.
+- Kept zeroizing protected values and stable error classification in the shared code. No secret,
+  token, credential reference or provider value was added to logs or evidence.
+
+### 3. KISS, DRY, generated-contract drift and portability
+
+- Used one default `std` feature boundary rather than a second crate, protocol implementation or
+  transport abstraction. Native users require no source change.
+- Reused the existing models, limits, crypto, error and brokered facade code for the managed
+  Component. Only direct URL/client/clock surfaces require `std`.
+- Kept WIT adaptation in the platform package, not the provider SDK. The SDK therefore remains
+  independent of generated platform bindings and portable to another capability host.
+
+No finding remains in these three SDK scopes. The platform package's separate three-pass review
+owns its WIT adapter, host limits, package admission and runtime behavior.

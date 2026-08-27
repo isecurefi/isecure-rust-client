@@ -1,8 +1,10 @@
 //! Public provider-protocol request and response models.
 
+use alloc::{string::String, vec::Vec};
+use core::fmt;
+
 use crate::{SecretBytes, SecretString};
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// ISECure account identity mode.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -35,6 +37,7 @@ pub enum PgpKeyPurpose {
 }
 
 impl PgpKeyPurpose {
+    #[cfg(feature = "std")]
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Authorize => "authorize",

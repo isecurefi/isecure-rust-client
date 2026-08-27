@@ -1,12 +1,13 @@
 //! Narrow privileged ISECure challenge, placement and capture mechanics.
 
-use std::fmt;
+use alloc::{string::String, vec, vec::Vec};
+use core::{fmt, str};
 
 use crate::{
     ChallengeEncryptor, Error, LimitKind, MfaMethod, ProtocolError, ResourceLimits, SecretBytes,
     SecretString,
     brokered::{BrokeredOperation, CaptureSummary, ProtectedValueKind, RegistrationKind},
-    client::ensure_limit,
+    protocol::ensure_limit,
 };
 
 /// Broker capability corresponding to one WIT `transient-secret` resource.
@@ -361,7 +362,7 @@ fn read_secret<S: TransientSecret>(
         limits.max_request_body_bytes(),
         LimitKind::RequestBody,
     )?;
-    let value = std::str::from_utf8(bytes.expose_secret())
+    let value = str::from_utf8(bytes.expose_secret())
         .map_err(|_| Error::Protocol(ProtocolError::InvalidConfiguration))?;
     if value.is_empty() {
         return Err(Error::Protocol(ProtocolError::InvalidConfiguration));
