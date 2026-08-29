@@ -37,8 +37,8 @@ pub enum PgpKeyPurpose {
 }
 
 impl PgpKeyPurpose {
-    #[cfg(feature = "std")]
-    pub(crate) const fn as_str(self) -> &'static str {
+    /// Exact lowercase REST wire value.
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Authorize => "authorize",
             Self::Export => "export",

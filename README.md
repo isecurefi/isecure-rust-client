@@ -78,10 +78,11 @@ locally expired session.
 
 ## Brokered Component facade
 
-The brokered facade is intentionally narrower than the direct client. It covers the first signed
-ISECure package: Admin/Data registration, password recovery, authentication and MFA, plus
-authenticated account/key/certificate-list connection checks. Later file and certificate workflows
-continue to use the shared protocol core but are not admitted through this security facade yet.
+The brokered facade is intentionally narrower than the direct client. It covers the signed ISECure
+package's Admin/Data registration, password recovery, authentication and MFA, authenticated
+account/key/certificate-list checks, and parent-level OpenPGP public-key administration. Later file
+and certificate workflows continue to use the shared protocol core but are not admitted through
+this security facade yet.
 
 `BusinessFacade::plan` checks the exact ordered protected-value kinds and emits a short typed stage
 list. A `ProtectedBinding` borrows a generated WIT `protected-reference`; it has no method that

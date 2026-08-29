@@ -66,6 +66,24 @@ fn business_plans_are_closed_linear_and_hold_only_opaque_references() {
         &[SecurityStage::AuthenticatedHeadersPrepare]
     );
 
+    for operation in [
+        BrokeredOperation::UploadPgpKey,
+        BrokeredOperation::DeleteKey,
+    ] {
+        let plan = facade
+            .plan(
+                operation,
+                &[
+                    binding(ProtectedValueKind::IdToken, &id_token),
+                    binding(ProtectedValueKind::ApiKey, &api_key),
+                ],
+            )
+            .expect("authenticated OpenPGP administration plan");
+        assert_eq!(plan.stages(), &[SecurityStage::AuthenticatedHeadersPrepare]);
+    }
+    assert_eq!(BrokeredOperation::UploadPgpKey.operation_id(), "UploadKey");
+    assert_eq!(BrokeredOperation::DeleteKey.operation_id(), "DeleteKey");
+
     let linked = facade
         .plan(
             BrokeredOperation::Register(RegistrationKind::LinkedIdentity),
@@ -301,6 +319,22 @@ fn privileged_prepare_reads_exact_values_once_and_emits_exact_fields() {
     );
     assert_eq!(values["Authorization"].0, RequestFieldPlacement::Header);
     assert_eq!(values["x-api-key"].0, RequestFieldPlacement::Header);
+
+    let mut upload_headers = [
+        OneUseSecret::new("fixture-id-token"),
+        OneUseSecret::new("fixture-api-key"),
+    ];
+    let values = mutations(
+        facade
+            .prepare(
+                BrokeredOperation::UploadPgpKey,
+                SecurityPrepareInput::AuthenticatedHeaders,
+                &mut upload_headers,
+            )
+            .expect("OpenPGP upload authentication headers"),
+    );
+    assert_eq!(values["Authorization"].1, "fixture-id-token");
+    assert_eq!(values["x-api-key"].1, "fixture-api-key");
 
     let mut login = [OneUseSecret::new("fixture-password")];
     let values = mutations(

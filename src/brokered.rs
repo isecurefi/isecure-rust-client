@@ -45,6 +45,8 @@ pub enum BrokeredOperation {
     ListAccounts,
     ListCertificates,
     ListKeys,
+    UploadPgpKey,
+    DeleteKey,
     Logout,
 }
 
@@ -66,6 +68,8 @@ impl BrokeredOperation {
             Self::ListAccounts => "ListAccounts",
             Self::ListCertificates => "ListCerts",
             Self::ListKeys => "ListKeys",
+            Self::UploadPgpKey => "UploadKey",
+            Self::DeleteKey => "DeleteKey",
             Self::Logout => "Logout",
         }
     }
@@ -231,6 +235,8 @@ impl BusinessFacade {
             BrokeredOperation::ListAccounts
             | BrokeredOperation::ListCertificates
             | BrokeredOperation::ListKeys
+            | BrokeredOperation::UploadPgpKey
+            | BrokeredOperation::DeleteKey
             | BrokeredOperation::Logout => (
                 &[ProtectedValueKind::IdToken, ProtectedValueKind::ApiKey],
                 AUTHENTICATED_STAGES,
