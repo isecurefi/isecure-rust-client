@@ -9,14 +9,17 @@ use alloc::{string::String, vec::Vec};
 use core::fmt;
 
 use crate::{
-    ApiResponse, AuthErrorReason, AuthStep, Error, HttpError, LimitKind, ListAccountsResponse,
-    ListCertificatesResponse, ListKeysResponse, MfaMethod, Mode, ProtocolError, RegistrationResult,
-    ResourceLimits, Response,
+    ApiResponse, AuthErrorReason, AuthStep, DownloadFileResponse, Error, HttpError, LimitKind,
+    ListAccountsResponse, ListCertificatesResponse, ListFilesResponse, ListKeysResponse, MfaMethod,
+    Mode, ProtocolError, RegistrationResult, ResourceLimits, Response,
     auth::{
         AuthResponseFacts, AuthTransition, VerificationTransition, classify_auth_response,
         classify_verification_response,
     },
-    protocol::{decode_json_response, ensure_limit, ensure_logical, is_safe_request_id},
+    protocol::{
+        decode_download_response, decode_json_response, ensure_limit, ensure_logical,
+        is_safe_request_id,
+    },
 };
 
 /// Registration relationship for the exact ISECure REST operation.
@@ -47,6 +50,8 @@ pub enum BrokeredOperation {
     ListKeys,
     UploadPgpKey,
     DeleteKey,
+    ListFiles,
+    DownloadFile,
     Logout,
 }
 
@@ -70,6 +75,8 @@ impl BrokeredOperation {
             Self::ListKeys => "ListKeys",
             Self::UploadPgpKey => "UploadKey",
             Self::DeleteKey => "DeleteKey",
+            Self::ListFiles => "ListFiles",
+            Self::DownloadFile => "DownloadFile",
             Self::Logout => "Logout",
         }
     }
@@ -237,6 +244,8 @@ impl BusinessFacade {
             | BrokeredOperation::ListKeys
             | BrokeredOperation::UploadPgpKey
             | BrokeredOperation::DeleteKey
+            | BrokeredOperation::ListFiles
+            | BrokeredOperation::DownloadFile
             | BrokeredOperation::Logout => (
                 &[ProtectedValueKind::IdToken, ProtectedValueKind::ApiKey],
                 AUTHENTICATED_STAGES,
@@ -397,6 +406,23 @@ impl BusinessFacade {
         ensure_logical(&response.response_code)?;
         self.ensure_collection(response.pgp_keys.len())?;
         Ok(response)
+    }
+
+    /// Decodes one exact bounded bank-file listing for a managed source job.
+    pub fn complete_list_files(&self, response: Response) -> Result<ListFilesResponse, Error> {
+        self.ensure_response_body(response.body.len())?;
+        let response: ListFilesResponse = decode_json_response(response, 200)?;
+        ensure_logical(&response.response_code)?;
+        self.ensure_collection(response.file_descriptors.len())?;
+        Ok(response)
+    }
+
+    /// Decodes one exact downloaded bank file while retaining zeroization and size limits.
+    pub fn complete_download_file(
+        &self,
+        response: Response,
+    ) -> Result<DownloadFileResponse, Error> {
+        decode_download_response(response, self.limits)
     }
 
     fn ensure_response_body(&self, actual: usize) -> Result<(), Error> {

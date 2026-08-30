@@ -2,9 +2,13 @@
 
 use alloc::{borrow::ToOwned, string::String};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::{Deserialize, de::DeserializeOwned};
 
-use crate::{Error, HttpError, LimitError, LimitKind, LogicalError, ProtocolError, Response};
+use crate::{
+    ApiResponse, DownloadFileResponse, Error, HttpError, LimitError, LimitKind, LogicalError,
+    ProtocolError, ResourceLimits, Response, SecretBytes,
+};
 
 pub(crate) fn ensure_logical(response_code: &str) -> Result<(), Error> {
     if !crate::models::is_response_code(response_code) {
@@ -56,6 +60,77 @@ pub(crate) fn is_safe_request_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
+}
+
+fn max_base64_len(raw_bytes: usize) -> usize {
+    raw_bytes
+        .checked_add(2)
+        .and_then(|value| value.checked_div(3))
+        .and_then(|value| value.checked_mul(4))
+        .unwrap_or(usize::MAX)
+}
+
+pub(crate) fn decode_download_response(
+    response: Response,
+    limits: ResourceLimits,
+) -> Result<DownloadFileResponse, Error> {
+    ensure_limit(
+        response.body.len(),
+        limits.max_response_body_bytes(),
+        LimitKind::ResponseBody,
+    )?;
+    let response: DownloadWire = decode_json_response(response, 200)?;
+    finish_download(response, limits)
+}
+
+pub(crate) fn finish_download(
+    response: DownloadWire,
+    limits: ResourceLimits,
+) -> Result<DownloadFileResponse, Error> {
+    response.envelope().ensure_success()?;
+    ensure_limit(
+        response.content.len(),
+        max_base64_len(limits.max_file_bytes()),
+        LimitKind::FileContent,
+    )?;
+    let content = SecretBytes::new(
+        BASE64_STANDARD
+            .decode(response.content.as_bytes())
+            .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))?,
+    );
+    ensure_limit(
+        content.len(),
+        limits.max_file_bytes(),
+        LimitKind::FileContent,
+    )?;
+    Ok(DownloadFileResponse {
+        response: response.envelope(),
+        content,
+    })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
+pub(crate) struct DownloadWire {
+    response_code: String,
+    response_text: String,
+    pub(crate) content: String,
+}
+
+impl DownloadWire {
+    pub(crate) fn envelope(&self) -> ApiResponse {
+        ApiResponse {
+            response_code: self.response_code.clone(),
+            response_text: self.response_text.clone(),
+        }
+    }
+}
+
+impl Drop for DownloadWire {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.content.zeroize();
+    }
 }
 
 #[derive(Deserialize)]

@@ -20,7 +20,7 @@ use crate::{
         AuthResponseFacts, AuthTransition, VerificationTransition, classify_auth_response,
         classify_failure, classify_verification_response,
     },
-    protocol::{decode_json_response, ensure_limit, ensure_logical},
+    protocol::{DownloadWire, decode_json_response, ensure_limit, ensure_logical, finish_download},
     url,
 };
 
@@ -639,26 +639,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
                 200,
             )
             .await?;
-        response.envelope().ensure_success()?;
-        ensure_limit(
-            response.content.len(),
-            max_base64_len(self.config.limits.max_file_bytes()),
-            LimitKind::FileContent,
-        )?;
-        let content = SecretBytes::new(
-            BASE64_STANDARD
-                .decode(response.content.as_bytes())
-                .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))?,
-        );
-        ensure_limit(
-            content.len(),
-            self.config.limits.max_file_bytes(),
-            LimitKind::FileContent,
-        )?;
-        Ok(DownloadFileResponse {
-            response: response.envelope(),
-            content,
-        })
+        finish_download(response, self.config.limits)
     }
 
     /// Deletes or marks one bank file deleted according to bank semantics.
@@ -1193,14 +1174,6 @@ fn serialize_bounded<Q: Serialize + ?Sized>(
     }
 }
 
-fn max_base64_len(raw_bytes: usize) -> usize {
-    raw_bytes
-        .checked_add(2)
-        .and_then(|value| value.checked_div(3))
-        .and_then(|value| value.checked_mul(4))
-        .unwrap_or(usize::MAX)
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase", deny_unknown_fields)]
 struct ChallengeWire {
@@ -1381,30 +1354,6 @@ struct UploadFileWire<'a> {
     name: &'a str,
     file_type: &'a str,
     signature: &'a str,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "PascalCase", deny_unknown_fields)]
-struct DownloadWire {
-    response_code: String,
-    response_text: String,
-    content: String,
-}
-
-impl DownloadWire {
-    fn envelope(&self) -> ApiResponse {
-        ApiResponse {
-            response_code: self.response_code.clone(),
-            response_text: self.response_text.clone(),
-        }
-    }
-}
-
-impl Drop for DownloadWire {
-    fn drop(&mut self) {
-        use zeroize::Zeroize;
-        self.content.zeroize();
-    }
 }
 
 #[derive(Serialize)]

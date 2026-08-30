@@ -69,6 +69,8 @@ fn business_plans_are_closed_linear_and_hold_only_opaque_references() {
     for operation in [
         BrokeredOperation::UploadPgpKey,
         BrokeredOperation::DeleteKey,
+        BrokeredOperation::ListFiles,
+        BrokeredOperation::DownloadFile,
     ] {
         let plan = facade
             .plan(
@@ -83,6 +85,11 @@ fn business_plans_are_closed_linear_and_hold_only_opaque_references() {
     }
     assert_eq!(BrokeredOperation::UploadPgpKey.operation_id(), "UploadKey");
     assert_eq!(BrokeredOperation::DeleteKey.operation_id(), "DeleteKey");
+    assert_eq!(BrokeredOperation::ListFiles.operation_id(), "ListFiles");
+    assert_eq!(
+        BrokeredOperation::DownloadFile.operation_id(),
+        "DownloadFile"
+    );
 
     let linked = facade
         .plan(
@@ -934,6 +941,76 @@ fn brokered_connection_checks_reuse_exact_typed_decoders_and_limits() {
             },
             200,
         ),
+        Err(Error::Limit(_))
+    ));
+}
+
+#[test]
+fn brokered_file_reads_reuse_exact_typed_decoders_and_limits() {
+    let facade = BusinessFacade::default();
+    let listed = facade
+        .complete_list_files(json_response(
+            200,
+            serde_json::json!({
+                "ResponseCode":"00",
+                "ResponseText":"files",
+                "FileDescriptors":[{
+                    "FileType":"camt.053",
+                    "Status":"NEW",
+                    "FileTimestamp":"2026-08-30T12:00:00Z",
+                    "FileReference":"synthetic-1"
+                }]
+            }),
+        ))
+        .expect("bounded file list");
+    assert_eq!(listed.file_descriptors.len(), 1);
+    assert_eq!(listed.file_descriptors[0].file_reference, "synthetic-1");
+
+    let downloaded = facade
+        .complete_download_file(json_response(
+            200,
+            serde_json::json!({
+                "ResponseCode":"00",
+                "ResponseText":"file",
+                "Content":"PHN5bnRoZXRpYy8+"
+            }),
+        ))
+        .expect("exact downloaded bytes");
+    assert_eq!(downloaded.content.expose_secret(), b"<synthetic/>");
+
+    assert!(matches!(
+        facade.complete_list_files(json_response(
+            200,
+            serde_json::json!({
+                "ResponseCode":"41",
+                "ResponseText":"refused",
+                "FileDescriptors":[]
+            }),
+        )),
+        Err(Error::Logical(_))
+    ));
+    assert!(matches!(
+        facade.complete_download_file(json_response(
+            200,
+            serde_json::json!({
+                "ResponseCode":"00",
+                "ResponseText":"file",
+                "Content":"!!!!"
+            }),
+        )),
+        Err(Error::Protocol(ProtocolError::MalformedResponse))
+    ));
+
+    let limits = ResourceLimits::new(1024, 1024, 1024, 4, 1024, 1).expect("limits");
+    assert!(matches!(
+        BusinessFacade::new(limits).complete_download_file(json_response(
+            200,
+            serde_json::json!({
+                "ResponseCode":"00",
+                "ResponseText":"file",
+                "Content":"PHN5bnRoZXRpYy8+"
+            }),
+        )),
         Err(Error::Limit(_))
     ));
 }
