@@ -22,6 +22,14 @@ use crate::{
     },
 };
 
+/// Versioned, non-secret marker requesting host injection of the exact delivery Artifact bytes.
+///
+/// A managed Component may place this marker only in a manifest-allowlisted request body field.
+/// The host must replace it with Base64 of the exact authorized Artifact after matching the
+/// detached signature produced for that same Artifact. It must never send the marker upstream.
+pub const EXACT_ARTIFACT_BODY_MARKER_V1: &[u8] =
+    b"isecure:connector-runtime:exact-artifact-body:v1";
+
 /// Registration relationship for the exact ISECure REST operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RegistrationKind {
@@ -52,6 +60,7 @@ pub enum BrokeredOperation {
     DeleteKey,
     ListFiles,
     DownloadFile,
+    UploadFile,
     Logout,
 }
 
@@ -77,6 +86,7 @@ impl BrokeredOperation {
             Self::DeleteKey => "DeleteKey",
             Self::ListFiles => "ListFiles",
             Self::DownloadFile => "DownloadFile",
+            Self::UploadFile => "UploadFile",
             Self::Logout => "Logout",
         }
     }
@@ -246,6 +256,7 @@ impl BusinessFacade {
             | BrokeredOperation::DeleteKey
             | BrokeredOperation::ListFiles
             | BrokeredOperation::DownloadFile
+            | BrokeredOperation::UploadFile
             | BrokeredOperation::Logout => (
                 &[ProtectedValueKind::IdToken, ProtectedValueKind::ApiKey],
                 AUTHENTICATED_STAGES,

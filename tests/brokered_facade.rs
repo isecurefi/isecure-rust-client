@@ -9,11 +9,11 @@ use futures_executor::block_on;
 use isecure_rust_client::{
     ApiResponse, AuthState, AuthStep, BrokerError, BrokeredAuthContext, BrokeredAuthState,
     BrokeredOperation, BusinessFacade, CaptureBroker, ChallengeEncryptor, Client, ClientConfig,
-    Error, MfaMethod, Mode, ProtectedBinding, ProtectedResponseField, ProtectedValueKind,
-    ProtocolError, RegistrationKind, Request, RequestFieldPlacement, RequestMutation,
-    ResourceLimits, Response, SanitizedAuthResponse, SanitizedResponse, SecretBytes, SecretString,
-    SecurityFacade, SecurityPrepareInput, SecurityStage, TransientSecret, Transport,
-    TransportError,
+    EXACT_ARTIFACT_BODY_MARKER_V1, Error, MfaMethod, Mode, ProtectedBinding,
+    ProtectedResponseField, ProtectedValueKind, ProtocolError, RegistrationKind, Request,
+    RequestFieldPlacement, RequestMutation, ResourceLimits, Response, SanitizedAuthResponse,
+    SanitizedResponse, SecretBytes, SecretString, SecurityFacade, SecurityPrepareInput,
+    SecurityStage, TransientSecret, Transport, TransportError,
 };
 
 const CHALLENGE: &str = "challenge|1475429754114|synthetic";
@@ -71,6 +71,7 @@ fn business_plans_are_closed_linear_and_hold_only_opaque_references() {
         BrokeredOperation::DeleteKey,
         BrokeredOperation::ListFiles,
         BrokeredOperation::DownloadFile,
+        BrokeredOperation::UploadFile,
     ] {
         let plan = facade
             .plan(
@@ -90,6 +91,12 @@ fn business_plans_are_closed_linear_and_hold_only_opaque_references() {
         BrokeredOperation::DownloadFile.operation_id(),
         "DownloadFile"
     );
+    assert_eq!(BrokeredOperation::UploadFile.operation_id(), "UploadFile");
+    assert_eq!(
+        EXACT_ARTIFACT_BODY_MARKER_V1,
+        b"isecure:connector-runtime:exact-artifact-body:v1"
+    );
+    assert!(!EXACT_ARTIFACT_BODY_MARKER_V1.contains(&0));
 
     let linked = facade
         .plan(
@@ -339,6 +346,22 @@ fn privileged_prepare_reads_exact_values_once_and_emits_exact_fields() {
                 &mut upload_headers,
             )
             .expect("OpenPGP upload authentication headers"),
+    );
+    assert_eq!(values["Authorization"].1, "fixture-id-token");
+    assert_eq!(values["x-api-key"].1, "fixture-api-key");
+
+    let mut file_upload_headers = [
+        OneUseSecret::new("fixture-id-token"),
+        OneUseSecret::new("fixture-api-key"),
+    ];
+    let values = mutations(
+        facade
+            .prepare(
+                BrokeredOperation::UploadFile,
+                SecurityPrepareInput::AuthenticatedHeaders,
+                &mut file_upload_headers,
+            )
+            .expect("file upload authentication headers"),
     );
     assert_eq!(values["Authorization"].1, "fixture-id-token");
     assert_eq!(values["x-api-key"].1, "fixture-api-key");

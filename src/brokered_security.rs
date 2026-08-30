@@ -173,6 +173,7 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
                 | BrokeredOperation::DeleteKey
                 | BrokeredOperation::ListFiles
                 | BrokeredOperation::DownloadFile
+                | BrokeredOperation::UploadFile
                 | BrokeredOperation::Logout,
                 SecurityPrepareInput::AuthenticatedHeaders,
             ) => {
