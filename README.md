@@ -98,6 +98,8 @@ errors. Password/token/session ambiguity is not reclassified as a code mistake. 
 including registration, retain exact HTTP success requirements. The direct rejection decoder admits
 only the exact `ResponseCode` / `ResponseText` envelope; extra fields remain an HTTP error. Submitted
 answers are never resent automatically, and existing in-memory continuation custody is unchanged.
+The same wording guards apply to logical HTTP-200 failures: ambiguous password/session wording
+returns the existing `Unknown` reason, rather than a misleading code-specific reason.
 
 `SecurityFacade::prepare` accepts only closed ISECure operations and inputs. It reads each injected
 `TransientSecret` once into a zeroizing buffer and emits only the exact `ChResp`, `Encrypted`, MFA,

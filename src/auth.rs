@@ -184,16 +184,29 @@ pub enum AuthState {
 
 pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
     let text = response.response_text.to_ascii_lowercase();
-    if text.contains("too many")
+    let code_context = text.contains("code")
+        && !["password", "token", "session"]
+            .iter()
+            .any(|word| text.contains(word));
+    if (text.contains("too many")
         || text.contains("attempt limit")
-        || text.contains("limit exceeded")
+        || text.contains("limit exceeded"))
+        && (text.contains("attempt") || text.contains("request") || text.contains("rate"))
     {
         AuthErrorReason::TooManyAttempts
-    } else if text.contains("expired") || text.contains("no longer valid") {
+    } else if code_context && (text.contains("expired") || text.contains("no longer valid")) {
         AuthErrorReason::ExpiredCode
-    } else if text.contains("resend") || text.contains("request a new") {
+    } else if code_context && (text.contains("resend") || text.contains("request a new")) {
         AuthErrorReason::ResendRequired
-    } else if text.contains("already") && (text.contains("verif") || text.contains("confirm")) {
+    } else if [
+        "already verified",
+        "already confirmed",
+        "already been verified",
+        "already been confirmed",
+    ]
+    .iter()
+    .any(|phrase| text.contains(phrase))
+    {
         AuthErrorReason::AlreadyVerified
     } else if text.contains("not confirmed")
         || text.contains("unconfirmed")
@@ -204,10 +217,11 @@ pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
         AuthErrorReason::Unconfirmed
     } else if text.contains("not verif") || text.contains("unverified") {
         AuthErrorReason::NotVerified
-    } else if text.contains("invalid")
-        || text.contains("incorrect")
-        || text.contains("mismatch")
-        || text.contains("wrong code")
+    } else if code_context
+        && (text.contains("invalid")
+            || text.contains("incorrect")
+            || text.contains("mismatch")
+            || text.contains("wrong code"))
     {
         AuthErrorReason::InvalidCode
     } else {
@@ -225,33 +239,17 @@ pub(crate) fn is_recognized_auth_rejection(status: u16, response: &ApiResponse) 
         return false;
     }
     let reason = classify_failure(response);
-    let text = response.response_text.to_ascii_lowercase();
-    let rate_limited = reason == AuthErrorReason::TooManyAttempts
-        && (text.contains("attempt") || text.contains("request") || text.contains("rate"));
     if status == 429 {
-        return rate_limited;
+        return reason == AuthErrorReason::TooManyAttempts;
     }
-    match reason {
+    matches!(
+        reason,
         AuthErrorReason::InvalidCode
-        | AuthErrorReason::ExpiredCode
-        | AuthErrorReason::ResendRequired => {
-            // Generic "invalid" or "expired" may describe a password/session, not a code.
-            text.contains("code")
-                && !["password", "token", "session"]
-                    .iter()
-                    .any(|word| text.contains(word))
-        }
-        AuthErrorReason::AlreadyVerified => [
-            "already verified",
-            "already confirmed",
-            "already been verified",
-            "already been confirmed",
-        ]
-        .iter()
-        .any(|phrase| text.contains(phrase)),
-        AuthErrorReason::TooManyAttempts => rate_limited,
-        _ => false,
-    }
+            | AuthErrorReason::ExpiredCode
+            | AuthErrorReason::ResendRequired
+            | AuthErrorReason::AlreadyVerified
+            | AuthErrorReason::TooManyAttempts
+    )
 }
 
 /// Secret-free facts used by both direct and brokered authentication paths.

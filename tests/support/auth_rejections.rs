@@ -307,7 +307,24 @@ pub fn brokered_rejections_reject_contradictory_captures() {
     assert!(matches!(result, Err(Error::Http(_))));
 }
 
+pub fn logical_rejections_do_not_mislabel_passwords_or_expired_sessions_as_codes() {
+    for text in [
+        "Invalid password",
+        "Access token expired",
+        "Access token expired; request a new code",
+        "Too many accounts",
+        "Already sent a confirmation code",
+    ] {
+        assert_reason(
+            block_on(client(vec![challenge(), response(200, "42", text)]).login()),
+            brokered_auth(200, "42", text),
+            AuthErrorReason::Unknown,
+        );
+    }
+}
+
 pub fn run() {
+    logical_rejections_do_not_mislabel_passwords_or_expired_sessions_as_codes();
     recognized_rejections();
     uncertain_rejections();
     generic_operations_remain_strict();
