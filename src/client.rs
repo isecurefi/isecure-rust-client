@@ -14,13 +14,16 @@ use crate::{
     ExportedCertificate, Header, HeaderValue, HttpMethod, ImportCertificateRequest, LimitError,
     LimitKind, ListAccountsResponse, ListCertificatesResponse, ListFilesQuery, ListFilesResponse,
     ListKeysResponse, MfaMethod, Mode, PasswordReset, PgpKeyPurpose, ProtocolError,
-    RegistrationResult, Request, ResourceLimits, SecretBytes, SecretString, Session, Transport,
-    UploadFileRequest,
+    RegistrationResult, Request, ResourceLimits, Response, SecretBytes, SecretString, Session,
+    Transport, UploadFileRequest,
     auth::{
         AuthResponseFacts, AuthTransition, VerificationTransition, classify_auth_response,
         classify_failure, classify_verification_response,
     },
-    protocol::{DownloadWire, decode_json_response, ensure_limit, ensure_logical, finish_download},
+    protocol::{
+        DownloadWire, decode_auth_response, decode_json_response, ensure_limit, ensure_logical,
+        finish_download,
+    },
     url,
 };
 
@@ -413,13 +416,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             encrypted: encrypted.expose_secret(),
         };
         let response: AuthResponseWire = self
-            .send_json(
-                HttpMethod::Post,
-                self.urls()?.session(),
-                Some(&request),
-                false,
-                200,
-            )
+            .send_auth_json(HttpMethod::Post, self.urls()?.session(), Some(&request))
             .await?;
         self.apply_auth_response(response)
     }
@@ -436,13 +433,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             session: continuation.expose_secret(),
         };
         let response: AuthResponseWire = self
-            .send_json(
-                HttpMethod::Put,
-                self.urls()?.select_mfa(),
-                Some(&request),
-                false,
-                200,
-            )
+            .send_auth_json(HttpMethod::Put, self.urls()?.select_mfa(), Some(&request))
             .await?;
         self.apply_auth_response(response)
     }
@@ -465,13 +456,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             setup_totp: setup_totp.then_some(true),
         };
         let response: AuthResponseWire = self
-            .send_json(
-                HttpMethod::Put,
-                self.urls()?.mfa_code(),
-                Some(&request),
-                false,
-                200,
-            )
+            .send_auth_json(HttpMethod::Put, self.urls()?.mfa_code(), Some(&request))
             .await?;
         self.apply_auth_response(response)
     }
@@ -487,13 +472,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             code: code.expose_secret(),
         };
         let response: ApiResponse = self
-            .send_json(
-                HttpMethod::Put,
-                self.urls()?.verify_totp(),
-                Some(&request),
-                false,
-                200,
-            )
+            .send_auth_json(HttpMethod::Put, self.urls()?.verify_totp(), Some(&request))
             .await?;
         self.classify_verification(response, crate::AuthStep::Mfa)
     }
@@ -504,12 +483,10 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             code: code.expose_secret(),
         };
         let response: ApiResponse = self
-            .send_json(
+            .send_auth_json(
                 HttpMethod::Post,
                 self.urls()?.account_phone(),
                 Some(&request),
-                false,
-                200,
             )
             .await?;
         self.classify_verification(response, crate::AuthStep::PhoneVerification)
@@ -527,13 +504,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             code: code.expose_secret(),
         };
         let response: ApiResponse = self
-            .send_json(
-                HttpMethod::Post,
-                self.urls()?.account(),
-                Some(&request),
-                false,
-                200,
-            )
+            .send_auth_json(HttpMethod::Post, self.urls()?.account(), Some(&request))
             .await?;
         let state = self.classify_verification(response, crate::AuthStep::EmailVerification)?;
         if matches!(state, AuthState::VerificationAccepted { .. }) {
@@ -1042,6 +1013,30 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         expected_status: u16,
         allow_expired_session: bool,
     ) -> Result<R, Error> {
+        let response = self
+            .send_response(method, url, body, authenticated, allow_expired_session)
+            .await?;
+        decode_json_response(response, expected_status)
+    }
+
+    async fn send_auth_json<Q: Serialize + ?Sized, R: DeserializeOwned>(
+        &self,
+        method: HttpMethod,
+        url: String,
+        body: Option<&Q>,
+    ) -> Result<R, Error> {
+        let response = self.send_response(method, url, body, false, false).await?;
+        decode_auth_response(response)
+    }
+
+    async fn send_response<Q: Serialize + ?Sized>(
+        &self,
+        method: HttpMethod,
+        url: String,
+        body: Option<&Q>,
+        authenticated: bool,
+        allow_expired_session: bool,
+    ) -> Result<Response, Error> {
         if authenticated && self.is_session_expired() && !allow_expired_session {
             return Err(Error::Protocol(ProtocolError::SessionExpired));
         }
@@ -1065,7 +1060,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             self.config.limits.max_response_body_bytes(),
             LimitKind::ResponseBody,
         )?;
-        decode_json_response(response, expected_status)
+        Ok(response)
     }
 
     fn ensure_collection(&self, actual: usize) -> Result<(), Error> {

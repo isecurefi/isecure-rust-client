@@ -54,6 +54,21 @@ pub(crate) fn decode_json_response<R: DeserializeOwned>(
         .map_err(|_| Error::Protocol(ProtocolError::MalformedResponse))
 }
 
+/// Only auth/verification callers use this decoder. A rejected response must be
+/// the exact API envelope; token-bearing or unknown fields fail closed.
+#[cfg(feature = "std")]
+pub(crate) fn decode_auth_response<R: DeserializeOwned>(response: Response) -> Result<R, Error> {
+    let expected_status = if response.status != 200
+        && serde_json::from_slice::<ApiResponse>(response.body.expose_secret()).is_ok_and(
+            |envelope| crate::auth::is_recognized_auth_rejection(response.status, &envelope),
+        ) {
+        response.status
+    } else {
+        200
+    };
+    decode_json_response(response, expected_status)
+}
+
 pub(crate) fn is_safe_request_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128

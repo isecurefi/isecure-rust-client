@@ -287,7 +287,7 @@ impl BusinessFacade {
             self.limits.max_collection_items(),
             LimitKind::CollectionItems,
         )?;
-        let envelope = response.into_success_envelope(200)?;
+        let envelope = response.into_auth_envelope()?;
         let transition = classify_auth_response(AuthResponseFacts {
             response: &envelope.response,
             has_current_access_token: envelope.captures.has(ProtectedValueKind::AccessToken),
@@ -366,7 +366,7 @@ impl BusinessFacade {
         response: SanitizedResponse,
     ) -> Result<BrokeredAuthState, Error> {
         self.ensure_sanitized_response(&response)?;
-        let response = response.into_success_envelope(200)?;
+        let response = response.into_auth_envelope()?;
         Ok(match classify_verification_response(&response)? {
             VerificationTransition::Accepted => {
                 BrokeredAuthState::VerificationAccepted { mode, step }
@@ -567,6 +567,16 @@ pub struct SanitizedResponse {
 }
 
 impl SanitizedResponse {
+    fn into_auth_envelope(self) -> Result<ApiResponse, Error> {
+        let expected_status =
+            if crate::auth::is_recognized_auth_rejection(self.status, &self.response) {
+                self.status
+            } else {
+                200
+            };
+        self.into_success_envelope(expected_status)
+    }
+
     fn into_success_envelope(self, expected_status: u16) -> Result<ApiResponse, Error> {
         if self.status != expected_status {
             return Err(Error::Http(HttpError {
@@ -596,13 +606,23 @@ pub struct SanitizedAuthResponse {
 }
 
 impl SanitizedAuthResponse {
-    fn into_success_envelope(self, expected_status: u16) -> Result<SanitizedAuthEnvelope, Error> {
+    fn into_auth_envelope(self) -> Result<SanitizedAuthEnvelope, Error> {
+        let rejection = self.status != 200;
+        let contradictory = self.captures != CaptureSummary::default()
+            || self.challenge_name.is_some()
+            || self.expires_in_seconds.is_some()
+            || !self.mfa_options.is_empty()
+            || self.sms_destination.is_some();
         let response = SanitizedResponse {
             status: self.status,
             response: self.response,
             request_id: self.request_id,
-        }
-        .into_success_envelope(expected_status)?;
+        };
+        let response = if rejection && contradictory {
+            response.into_success_envelope(200)?
+        } else {
+            response.into_auth_envelope()?
+        };
         Ok(SanitizedAuthEnvelope {
             response,
             challenge_name: self.challenge_name,

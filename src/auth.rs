@@ -171,7 +171,7 @@ pub enum AuthState {
         /// Accepted step.
         step: AuthStep,
     },
-    /// Provider returned a typed logical failure.
+    /// Provider returned a typed logical failure, including a recognized HTTP rejection.
     Failed {
         /// Identity mode.
         mode: Mode,
@@ -212,6 +212,45 @@ pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
         AuthErrorReason::InvalidCode
     } else {
         AuthErrorReason::Unknown
+    }
+}
+
+/// A bounded HTTP rejection is diagnostic evidence, never permission to replay.
+/// Other operations and unknown/inconsistent envelopes retain their HTTP error.
+pub(crate) fn is_recognized_auth_rejection(status: u16, response: &ApiResponse) -> bool {
+    if !crate::models::is_response_code(&response.response_code)
+        || response.response_code == "00"
+        || !matches!(status, 400 | 429)
+    {
+        return false;
+    }
+    let reason = classify_failure(response);
+    let text = response.response_text.to_ascii_lowercase();
+    let rate_limited = reason == AuthErrorReason::TooManyAttempts
+        && (text.contains("attempt") || text.contains("request") || text.contains("rate"));
+    if status == 429 {
+        return rate_limited;
+    }
+    match reason {
+        AuthErrorReason::InvalidCode
+        | AuthErrorReason::ExpiredCode
+        | AuthErrorReason::ResendRequired => {
+            // Generic "invalid" or "expired" may describe a password/session, not a code.
+            text.contains("code")
+                && !["password", "token", "session"]
+                    .iter()
+                    .any(|word| text.contains(word))
+        }
+        AuthErrorReason::AlreadyVerified => [
+            "already verified",
+            "already confirmed",
+            "already been verified",
+            "already been confirmed",
+        ]
+        .iter()
+        .any(|phrase| text.contains(phrase)),
+        AuthErrorReason::TooManyAttempts => rate_limited,
+        _ => false,
     }
 }
 

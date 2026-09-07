@@ -89,6 +89,16 @@ list. A `ProtectedBinding` borrows a generated WIT `protected-reference`; it has
 reveals the host resource or credential bytes. `complete_authentication` consumes only sanitized
 provider fields and structural capture evidence, then uses the same auth classifier as `Client`.
 
+Authentication and verification completion preserve recognized HTTP 400 rejections as
+`AuthState::Failed` / `BrokeredAuthState::Failed`: invalid or expired codes, a required new code,
+already-verified state and attempt limits. HTTP 429 is classified only with a recognized attempt-limit
+envelope. This is best-effort provider diagnosis, not permission to retry. Unknown wording, malformed
+or success-coded rejection envelopes, server errors and contradictory authentication captures remain
+errors. Password/token/session ambiguity is not reclassified as a code mistake. Other operations,
+including registration, retain exact HTTP success requirements. The direct rejection decoder admits
+only the exact `ResponseCode` / `ResponseText` envelope; extra fields remain an HTTP error. Submitted
+answers are never resent automatically, and existing in-memory continuation custody is unchanged.
+
 `SecurityFacade::prepare` accepts only closed ISECure operations and inputs. It reads each injected
 `TransientSecret` once into a zeroizing buffer and emits only the exact `ChResp`, `Encrypted`, MFA,
 verification, `Authorization` or `x-api-key` mutation required by that operation.
@@ -117,12 +127,13 @@ scripts/install-wasm-toolchain.sh /absolute/private/tool-directory
 WASMTIME_BIN=/path/to/wasmtime WASM_TOOLS_BIN=/path/to/wasm-tools scripts/test-wasm.sh
 ```
 
-The Wasm script builds and executes `examples/wasm_contract.rs` as real WASI code. The identical
+The Wasm script builds and executes `examples/wasm_contract.rs` and the focused
+`examples/wasm_auth_rejections.rs` as real WASI code. The identical
 runner and versioned `contracts/component-contract-cases.json` execute natively too. They cover
 authentication, raw-byte upload/download, logical and HTTP failure, malformed JSON, cancellation,
 timeout, host-owned retry and secret-safe debug output. The gate also validates the component,
-checks its exact import allowlist and enforces a 400,000-byte regression budget. The native suite
-additionally covers exact operations, resource-limit boundaries, URL encoding, API-key
+checks its exact import allowlist and enforces the existing 400,000-byte regression budget for each
+harness. The native suite additionally covers exact operations, resource-limit boundaries, URL encoding, API-key
 substitution, expiry, RSA interoperability and deterministic mutation fuzzing.
 
 The command example deliberately keeps its small WASI command harness. Production managed

@@ -15,5 +15,7 @@ if [ -z "$wasm_tools_bin" ] || [ ! -x "$wasm_tools_bin" ]; then
     exit 2
 fi
 
-artifact=$(WASM_TOOLS_BIN="$wasm_tools_bin" scripts/audit-wasm.sh)
-"$wasmtime_bin" run -C cache=n "$artifact"
+for example in wasm_contract wasm_auth_rejections; do
+    artifact=$(WASM_TOOLS_BIN="$wasm_tools_bin" scripts/audit-wasm.sh "$example")
+    "$wasmtime_bin" run -C cache=n "$artifact"
+done
