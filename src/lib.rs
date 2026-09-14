@@ -21,9 +21,9 @@ mod url;
 
 pub use auth::{AuthErrorReason, AuthState, AuthStep, MfaMethod, Session, TotpEnrollment};
 pub use brokered::{
-    BrokeredAuthContext, BrokeredAuthState, BrokeredOperation, BusinessFacade, BusinessPlan,
-    CaptureSummary, EXACT_ARTIFACT_BODY_MARKER_V1, ProtectedBinding, ProtectedValueKind,
-    RegistrationKind, SanitizedAuthResponse, SanitizedResponse, SecurityStage,
+    BrokeredAuthContext, BrokeredAuthState, BrokeredOperation, BrokeredRegistrationState,
+    BusinessFacade, BusinessPlan, CaptureSummary, EXACT_ARTIFACT_BODY_MARKER_V1, ProtectedBinding,
+    ProtectedValueKind, RegistrationKind, SanitizedAuthResponse, SanitizedResponse, SecurityStage,
 };
 pub use brokered_security::{
     CaptureBroker, ProtectedResponseField, RequestFieldPlacement, RequestMutation, SecurityFacade,

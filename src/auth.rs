@@ -45,6 +45,8 @@ pub enum AuthStep {
 /// Stable best-effort classification of a provider authentication failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AuthErrorReason {
+    /// Password/challenge validation failed before provider authentication began.
+    PasswordChallengeRejected,
     /// Code was rejected.
     InvalidCode,
     /// Code has expired.
@@ -183,6 +185,9 @@ pub enum AuthState {
 }
 
 pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
+    if is_password_challenge_rejection(response) {
+        return AuthErrorReason::PasswordChallengeRejected;
+    }
     let text = response.response_text.to_ascii_lowercase();
     let code_context = text.contains("code")
         && !["password", "token", "session"]
@@ -229,6 +234,10 @@ pub(crate) fn classify_failure(response: &ApiResponse) -> AuthErrorReason {
     }
 }
 
+pub(crate) fn is_password_challenge_rejection(response: &ApiResponse) -> bool {
+    response.response_code == "01" && response.response_text == "Getting password failed"
+}
+
 /// A bounded HTTP rejection is diagnostic evidence, never permission to replay.
 /// Other operations and unknown/inconsistent envelopes retain their HTTP error.
 pub(crate) fn is_recognized_auth_rejection(status: u16, response: &ApiResponse) -> bool {
@@ -244,7 +253,8 @@ pub(crate) fn is_recognized_auth_rejection(status: u16, response: &ApiResponse) 
     }
     matches!(
         reason,
-        AuthErrorReason::InvalidCode
+        AuthErrorReason::PasswordChallengeRejected
+            | AuthErrorReason::InvalidCode
             | AuthErrorReason::ExpiredCode
             | AuthErrorReason::ResendRequired
             | AuthErrorReason::AlreadyVerified

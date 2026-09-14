@@ -522,6 +522,130 @@ impl CaptureBroker<u8> for RecordingCaptureBroker {
 }
 
 #[test]
+fn password_challenge_rejection_has_direct_and_brokered_login_parity() {
+    use isecure_rust_client::{AuthErrorReason, CaptureSummary};
+    let direct_transport = FakeTransport::default();
+    direct_transport.push_json(200, challenge_response());
+    direct_transport.push_json(
+        400,
+        serde_json::json!({"ResponseCode":"01", "ResponseText":"Getting password failed"}),
+    );
+    assert!(matches!(
+        block_on(direct_client(direct_transport).login()),
+        Ok(AuthState::Failed {
+            reason: AuthErrorReason::PasswordChallengeRejected,
+            ..
+        })
+    ));
+    for (status, code, expected) in [
+        (400, "01", true),
+        (400, "00", false),
+        (400, "42", false),
+        (429, "01", false),
+        (500, "01", false),
+    ] {
+        let result = BusinessFacade::default().complete_authentication(
+            Mode::Admin,
+            BrokeredAuthContext::default(),
+            SanitizedAuthResponse {
+                status,
+                response: ApiResponse {
+                    response_code: code.into(),
+                    response_text: "Getting password failed".into(),
+                },
+                request_id: None,
+                challenge_name: None,
+                expires_in_seconds: None,
+                mfa_options: vec![],
+                sms_destination: None,
+                captures: CaptureSummary::default(),
+            },
+        );
+        assert_eq!(
+            matches!(
+                result,
+                Ok(BrokeredAuthState::Failed {
+                    reason: AuthErrorReason::PasswordChallengeRejected,
+                    ..
+                })
+            ),
+            expected
+        );
+        if !expected {
+            assert!(result.is_err());
+        }
+    }
+}
+
+#[test]
+fn registration_step_recognizes_only_confirmed_pre_registration_challenge_rejection() {
+    use isecure_rust_client::{BrokeredRegistrationState, CaptureSummary};
+    let facade = BusinessFacade::default();
+    let response = |status, code: &str, text: &str| SanitizedResponse {
+        status,
+        response: ApiResponse {
+            response_code: code.into(),
+            response_text: text.into(),
+        },
+        request_id: None,
+    };
+    let empty = CaptureSummary::default();
+    assert!(matches!(
+        facade.complete_registration_step(response(400, "01", "Getting password failed"), empty),
+        Ok(BrokeredRegistrationState::PasswordChallengeRejected)
+    ));
+    let api_key = HostReference(SECRET_CANARY);
+    let captured =
+        CaptureSummary::from_host_bindings(&[binding(ProtectedValueKind::ApiKey, &api_key)])
+            .unwrap();
+    for (status, code, text, captures) in [
+        (400, "01", "Getting password failed", captured),
+        (400, "00", "Getting password failed", empty),
+        (429, "01", "Getting password failed", empty),
+        (500, "01", "Getting password failed", empty),
+        (400, "01", "Synthetic unknown rejection", empty),
+        (201, "00", "Synthetic success without a key", empty),
+    ] {
+        assert!(
+            facade
+                .complete_registration_step(response(status, code, text), captures)
+                .is_err()
+        );
+    }
+    assert!(matches!(
+        facade.complete_registration_step(response(201, "00", "Synthetic registration"), captured),
+        Ok(BrokeredRegistrationState::Registered(_))
+    ));
+}
+
+#[test]
+fn empty_registration_capture_leaves_outcome_classification_to_the_business_facade() {
+    let mut broker = RecordingCaptureBroker::default();
+    for kind in [
+        RegistrationKind::NewIdentity,
+        RegistrationKind::LinkedIdentity,
+    ] {
+        let summary = security()
+            .capture(BrokeredOperation::Register(kind), &[], &mut broker)
+            .expect("a rejected registration has no credential to capture");
+        assert_eq!(summary, isecure_rust_client::CaptureSummary::default());
+        let success = SanitizedResponse {
+            status: 201,
+            response: ApiResponse {
+                response_code: "00".into(),
+                response_text: "Synthetic registration".into(),
+            },
+            request_id: None,
+        };
+        assert!(matches!(
+            BusinessFacade::default().complete_registration(success, summary),
+            Err(Error::Protocol(ProtocolError::MissingValue))
+        ));
+    }
+    assert!(broker.calls.is_empty());
+}
+
+#[test]
 fn capture_is_closed_deduplicated_and_broker_only() {
     let facade = security();
     let api_key = 1;

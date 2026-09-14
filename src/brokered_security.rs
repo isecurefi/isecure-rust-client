@@ -271,6 +271,8 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
     }
 
     /// Seals each admitted protected response field through the injected broker.
+    /// Empty captures are valid on provider rejection. Business completion owns the
+    /// requirement that successful registration includes an API key.
     pub fn capture<V, B: CaptureBroker<V>>(
         &self,
         operation: BrokeredOperation,
@@ -303,11 +305,6 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
             broker
                 .seal_captured(operation, field.kind, field.value)
                 .map_err(Error::Broker)?;
-        }
-        if matches!(operation, BrokeredOperation::Register(_))
-            && !summary.has(ProtectedValueKind::ApiKey)
-        {
-            return Err(Error::Protocol(ProtocolError::MissingValue));
         }
         Ok(summary)
     }

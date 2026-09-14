@@ -29,6 +29,16 @@ classifier:
   place it in an admitted ISECure field, or ask the host broker to seal an exact response value. It
   owns no durable state and opens no connection.
 
+The brokered registration boundary separates capture from outcome interpretation. A rejected
+registration may return no protected values; `SecurityFacade::capture` therefore accepts an empty
+capture set. `BusinessFacade::complete_registration` still requires a captured API key on success.
+`complete_registration_step` additionally recognizes the exact HTTP 400 / response-code `01`
+password-challenge rejection as `BrokeredRegistrationState::PasswordChallengeRejected`.
+Authentication exposes the same diagnosis through `AuthErrorReason`. Neither diagnosis permits
+replaying an old answer: a caller must obtain a fresh challenge and ask for fresh password input.
+Unknown, contradictory and server-error envelopes remain errors. These classifications do not
+persist unfinished setup or grant registration/retry authority to the SDK.
+
 ## Design
 
 Create a `Client<T, E>` with three caller-owned capabilities:

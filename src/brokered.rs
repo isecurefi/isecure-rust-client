@@ -358,6 +358,25 @@ impl BusinessFacade {
         })
     }
 
+    /// Classifies the provider's password-challenge rejection before registration.
+    /// The caller may obtain a fresh challenge and ask for a fresh password answer;
+    /// this method never retries, retains the answer or classifies arbitrary HTTP errors.
+    pub fn complete_registration_step(
+        &self,
+        response: SanitizedResponse,
+        captures: CaptureSummary,
+    ) -> Result<BrokeredRegistrationState, Error> {
+        self.ensure_sanitized_response(&response)?;
+        if response.status == 400
+            && crate::auth::is_password_challenge_rejection(&response.response)
+            && captures == CaptureSummary::default()
+        {
+            return Ok(BrokeredRegistrationState::PasswordChallengeRejected);
+        }
+        self.complete_registration(response, captures)
+            .map(BrokeredRegistrationState::Registered)
+    }
+
     /// Completes email, phone or TOTP verification through the shared classifier.
     pub fn complete_verification(
         &self,
@@ -557,6 +576,14 @@ pub enum BrokeredAuthState {
         reason: AuthErrorReason,
         response: ApiResponse,
     },
+}
+
+/// Confirmed registration transition; no credential values or retry authority are carried.
+#[non_exhaustive]
+pub enum BrokeredRegistrationState {
+    Registered(RegistrationResult),
+    /// Password/challenge validation failed before the provider starts registration.
+    PasswordChallengeRejected,
 }
 
 /// Sanitized response metadata delivered to the business Component.
