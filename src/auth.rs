@@ -69,6 +69,7 @@ pub enum AuthErrorReason {
 
 /// Successful authenticated session retained only in memory.
 pub struct Session {
+    pub(crate) account: Option<crate::SessionAccount>,
     pub(crate) access_token: Option<SecretString>,
     pub(crate) api_key: SecretString,
     pub(crate) expires_in_seconds: Option<u64>,
@@ -78,6 +79,12 @@ pub struct Session {
 }
 
 impl Session {
+    /// Metadata supplied with this completed session, absent on older responses.
+    /// Its presence does not grant authority beyond server-enforced permissions.
+    pub const fn account(&self) -> Option<&crate::SessionAccount> {
+        self.account.as_ref()
+    }
+
     /// API key for a caller-owned transport or explicit local custody boundary.
     pub fn api_key(&self) -> &SecretString {
         &self.api_key

@@ -626,6 +626,20 @@ fn authorized_synthetic_gpgtest_auth_and_read_operations() {
         "00"
     );
 
+    for session in [admin.session(), data.session()] {
+        let account = session
+            .expect("completed live session")
+            .account()
+            .expect("existing live account metadata");
+        assert!(matches!(
+            account.account_type,
+            isecure_rust_client::AccountType::Integrator
+                | isecure_rust_client::AccountType::Customer
+        ));
+        assert!(account.features.is_empty());
+        assert_eq!(account.entitlements.as_deref(), Some([].as_slice()));
+    }
+
     let request = Request {
         method: HttpMethod::Get,
         url: "https://example.invalid/customer@example.invalid".to_owned(),

@@ -88,6 +88,45 @@ pub(crate) fn is_response_code(value: &str) -> bool {
     value.len() == 2 && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
+/// Server-provided account classification; not a client authorization decision.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AccountType {
+    /// Operator classification.
+    Operator,
+    /// Integrator classification.
+    Integrator,
+    /// Customer classification.
+    Customer,
+}
+
+/// Optional account metadata returned with a completed login.
+#[derive(Clone, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
+pub struct SessionAccount {
+    /// Server classification. The server still authorizes every operation.
+    #[serde(rename = "Type")]
+    pub account_type: AccountType,
+    /// Per-user preview identifiers, not subscription or authorization grants.
+    pub features: Vec<String>,
+    /// Active product identifiers; `None` means unavailable, not an empty subscription list.
+    pub entitlements: Option<Vec<String>>,
+}
+
+impl fmt::Debug for SessionAccount {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SessionAccount")
+            .field("account_type", &self.account_type)
+            .field("features", &"[REDACTED]")
+            .field(
+                "entitlements",
+                &self.entitlements.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
+}
+
 /// Successful account registration.
 #[derive(Debug)]
 pub struct RegistrationResult {

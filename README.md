@@ -86,6 +86,13 @@ tokens in memory, rejects a returned API key that differs from the configured se
 refuses authenticated work after local expiry. `logout()` is the sole operation allowed to use a
 locally expired session.
 
+Completed direct-client sessions expose optional server metadata through `Session::account()`:
+`account_type`, preview `features` and active-product `entitlements`. An absent account remains
+`None` for older responses. Missing entitlements remain `None`, distinct from a known empty list.
+These values help presentation; the server continues to authorize every operation. Collections
+use the existing resource bounds, and unknown fields or malformed metadata remain errors. This
+observed v2 response extension is recorded separately from the older pinned OpenAPI snapshot.
+
 ## Brokered Component facade
 
 The brokered facade is intentionally narrower than the direct client. It covers the signed ISECure

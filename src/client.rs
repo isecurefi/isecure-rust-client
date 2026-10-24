@@ -819,6 +819,10 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
 
     fn apply_auth_response(&mut self, mut wire: AuthResponseWire) -> Result<AuthState, Error> {
         self.ensure_collection(wire.mfa_options.as_ref().map_or(0, Vec::len))?;
+        if let Some(account) = wire.account.as_ref() {
+            self.ensure_collection(account.features.len())?;
+            self.ensure_collection(account.entitlements.as_ref().map_or(0, Vec::len))?;
+        }
         let response = ApiResponse {
             response_code: std::mem::take(&mut wire.response_code),
             response_text: std::mem::take(&mut wire.response_text),
@@ -905,6 +909,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
                     None
                 };
                 self.session = Some(Session {
+                    account: wire.account.take(),
                     access_token: if totp_enrollment.is_none() {
                         self.pending.access_token.take()
                     } else {
@@ -1280,6 +1285,7 @@ struct VerificationWithTokenWire<'a> {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase", deny_unknown_fields)]
 struct AuthResponseWire {
+    account: Option<crate::SessionAccount>,
     response_code: String,
     response_text: String,
     access_token: Option<String>,

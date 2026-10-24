@@ -2,6 +2,9 @@
 
 ## 0.1.0 - Unreleased
 
+- Accept existing optional login `Account` metadata and expose it on completed direct-client
+  sessions, preserving entitlement omission, strict decoding and collection limits.
+
 - Initial transport-neutral ISECure REST API v2 Rust SDK.
 - Admin/Data authentication, verification and session state machine.
 - Account, certificate, OpenPGP key and file operations.

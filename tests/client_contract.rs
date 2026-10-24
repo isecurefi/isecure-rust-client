@@ -840,3 +840,172 @@ fn response_models_preserve_exact_lexical_values() {
     .expect("response");
     assert_eq!(response.response_code, "00");
 }
+
+#[test]
+fn login_accepts_existing_account_metadata() {
+    let (mut client, transport) = client(Mode::Data, false);
+    transport.json(200, challenge());
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"Login OK",
+        "IdToken":"synthetic-id","ApiKey":"synthetic-key","ExpiresIn":3600,
+        "Account":{"Type":"integrator","Features":[],"Entitlements":[]}}),
+    );
+    assert!(matches!(
+        block_on(client.login()),
+        Ok(AuthState::Authenticated { .. })
+    ));
+}
+
+fn login_with_account(account: Value) -> Value {
+    json!({"ResponseCode":"00","ResponseText":"Login OK",
+        "IdToken":"synthetic-id","ApiKey":"synthetic-key","ExpiresIn":3600,"Account":account})
+}
+
+#[test]
+fn account_metadata_preserves_values_and_entitlement_absence() {
+    for kind in ["operator", "integrator", "customer"] {
+        for entitlements in [None, Some(json!([])), Some(json!(["synthetic.product"]))] {
+            let (mut client, transport) = client(Mode::Data, false);
+            let mut account = json!({"Type":kind,"Features":["synthetic.feature"]});
+            if let Some(value) = &entitlements {
+                account["Entitlements"] = value.clone();
+            }
+            transport.json(200, challenge());
+            transport.json(200, login_with_account(account));
+            assert!(matches!(
+                block_on(client.login()),
+                Ok(AuthState::Authenticated { .. })
+            ));
+            let session = client.session().expect("completed session");
+            let account = session.account().expect("account metadata");
+            let expected = match kind {
+                "operator" => isecure_rust_client::AccountType::Operator,
+                "integrator" => isecure_rust_client::AccountType::Integrator,
+                _ => isecure_rust_client::AccountType::Customer,
+            };
+            assert_eq!(account.account_type, expected);
+            assert_eq!(account.features, ["synthetic.feature"]);
+            assert_eq!(
+                account.entitlements.as_ref().map(|v| json!(v)),
+                entitlements
+            );
+            let debug = format!("{account:?} {session:?}");
+            for secret in [
+                "synthetic.feature",
+                "synthetic.product",
+                "synthetic-id",
+                "synthetic-key",
+            ] {
+                assert!(!debug.contains(secret));
+            }
+        }
+    }
+}
+
+#[test]
+fn older_login_without_account_metadata_still_authenticates() {
+    let (mut client, transport) = client(Mode::Data, false);
+    let mut response = login_with_account(Value::Null);
+    response.as_object_mut().unwrap().remove("Account");
+    transport.json(200, challenge());
+    transport.json(200, response);
+    assert!(matches!(
+        block_on(client.login()),
+        Ok(AuthState::Authenticated { .. })
+    ));
+    assert!(client.session().unwrap().account().is_none());
+}
+
+#[test]
+fn malformed_account_metadata_fails_before_session_creation() {
+    for account in [
+        json!({"Type":"integrator","Features":[],"Entitlements":[],"Unexpected":true}),
+        json!({"Type":"unrecognized","Features":[]}),
+        json!({"Type":4,"Features":[]}),
+        json!({"Features":[]}),
+        json!({"Type":"customer"}),
+        json!({"Type":"customer","Features":[false]}),
+        json!({"Type":"customer","Features":[],"Entitlements":[{}]}),
+        json!({"Type":"customer","Features":[],"Entitlements":"unknown"}),
+        json!([]),
+    ] {
+        let (mut client, transport) = client(Mode::Data, false);
+        transport.json(200, challenge());
+        transport.json(200, login_with_account(account));
+        assert!(matches!(
+            block_on(client.login()),
+            Err(Error::Protocol(ProtocolError::MalformedResponse))
+        ));
+        assert!(client.session().is_none());
+    }
+    let (mut client, transport) = client(Mode::Data, false);
+    let mut response = login_with_account(json!({"Type":"customer","Features":[]}));
+    response["Unexpected"] = json!(true);
+    transport.json(200, challenge());
+    transport.json(200, response);
+    assert!(matches!(
+        block_on(client.login()),
+        Err(Error::Protocol(ProtocolError::MalformedResponse))
+    ));
+    assert!(client.session().is_none());
+}
+
+#[test]
+fn account_collections_obey_existing_resource_limits() {
+    let limits = ResourceLimits::new(8_192, 4_096, 4_096, 32, 32, 1).unwrap();
+    for (features, entitlements, accepted) in [
+        (json!(["one"]), json!(["one"]), true),
+        (json!(["one", "two"]), json!([]), false),
+        (json!([]), json!(["one", "two"]), false),
+    ] {
+        let (mut client, transport) = client_with_limits(Mode::Data, false, limits);
+        transport.json(200, challenge());
+        transport.json(
+            200,
+            login_with_account(
+                json!({"Type":"customer","Features":features,"Entitlements":entitlements}),
+            ),
+        );
+        let result = block_on(client.login());
+        if accepted {
+            assert!(matches!(result, Ok(AuthState::Authenticated { .. })));
+        } else {
+            assert!(
+                matches!(result, Err(Error::Limit(value)) if value.kind() == LimitKind::CollectionItems)
+            );
+            assert!(client.session().is_none());
+        }
+    }
+}
+
+#[test]
+fn intermediate_account_metadata_never_creates_or_carries_a_session() {
+    let (mut client, transport) = client(Mode::Admin, false);
+    transport.json(200, challenge());
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"MFA required",
+        "Session":"synthetic-continuation","ChallengeName":"SOFTWARE_TOKEN_MFA",
+        "Account":{"Type":"integrator","Features":[],"Entitlements":[]}}),
+    );
+    assert!(matches!(
+        block_on(client.login()),
+        Ok(AuthState::NeedsMfa { .. })
+    ));
+    assert!(client.session().is_none());
+    let mut response = login_with_account(Value::Null);
+    response.as_object_mut().unwrap().remove("Account");
+    transport.json(200, response);
+    assert!(matches!(
+        block_on(client.submit_mfa_code(&SecretString::new("123456"), false)),
+        Ok(AuthState::Authenticated { .. })
+    ));
+    assert!(client.session().unwrap().account().is_none());
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"Sign out successful"}),
+    );
+    block_on(client.logout()).expect("logout");
+    assert!(client.session().is_none());
+}
