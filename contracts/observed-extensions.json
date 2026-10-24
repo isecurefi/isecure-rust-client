@@ -28,6 +28,20 @@
         "Entitlements"
       ],
       "sdk_behavior": "Accept optional typed metadata on completed sessions; preserve unavailable versus empty entitlements and existing collection bounds."
+    },
+    {
+      "definition": "ListCertsResp",
+      "field": "Retired",
+      "pinned_openapi_type": "absent",
+      "source_repository": "isecurefi/isecure-ts-client",
+      "source_revision": "4ef96c27a6492b165f7812c6c16a0d4937f86211",
+      "required_item_fields": [
+        "CertName",
+        "Bank",
+        "Purpose",
+        "Expires"
+      ],
+      "sdk_behavior": "Accept optional retired certificate summaries separately from usable certificates; apply existing collection limits in both frontends."
     }
   ],
   "extensions": [

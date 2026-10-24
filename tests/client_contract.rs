@@ -1009,3 +1009,82 @@ fn intermediate_account_metadata_never_creates_or_carries_a_session() {
     block_on(client.logout()).expect("logout");
     assert!(client.session().is_none());
 }
+
+#[test]
+fn certificate_listing_accepts_existing_retired_field() {
+    let (mut client, transport) = client(Mode::Data, false);
+    authenticate(&mut client, &transport);
+    transport.json(
+        200,
+        json!({"ResponseCode":"00","ResponseText":"Certificates",
+        "Certs":[],"Connections":[],"Retired":[]}),
+    );
+    assert!(block_on(client.list_certificates()).is_ok());
+}
+
+#[test]
+fn retired_certificates_remain_separate_bounded_and_strict_in_both_frontends() {
+    let record = json!({"CertName":"synthetic.REMOVED.record","Bank":"syntheticbank",
+        "Purpose":"signing","Expires":"unknown"});
+    for retired in [None, Some(json!([])), Some(json!([record.clone()]))] {
+        let mut body =
+            json!({"ResponseCode":"00","ResponseText":"Certificates","Certs":[],"Connections":[]});
+        if let Some(value) = &retired {
+            body["Retired"] = value.clone();
+        }
+        let (mut client, transport) = client(Mode::Data, false);
+        authenticate(&mut client, &transport);
+        transport.json(200, body.clone());
+        let direct = block_on(client.list_certificates()).unwrap();
+        let brokered = isecure_rust_client::BusinessFacade::default()
+            .complete_list_certificates(Response {
+                status: 200,
+                body: SecretBytes::new(serde_json::to_vec(&body).unwrap()),
+            })
+            .unwrap();
+        assert_eq!(direct, brokered);
+        assert!(direct.certs.is_empty() && direct.connections.is_empty());
+        assert_eq!(
+            direct.retired.len(),
+            retired.as_ref().map_or(0, |v| v.as_array().unwrap().len())
+        );
+        if let Some(r) = direct.retired.first() {
+            assert_eq!(r.cert_name, "synthetic.REMOVED.record");
+            assert_eq!(r.expires, "unknown");
+            assert_eq!(
+                r.purpose,
+                isecure_rust_client::BankCertificatePurpose::Signing
+            );
+        }
+    }
+    let limits = ResourceLimits::new(8192, 4096, 4096, 32, 32, 1).unwrap();
+    let malformed = json!({"CertName":"synthetic.REMOVED.record","Bank":"syntheticbank","Purpose":"signing","Expires":"unknown","PrivateKey":"synthetic-forbidden"});
+    for (retired, limited) in [
+        (json!([record.clone(), record]), true),
+        (json!([malformed]), false),
+        (json!("unexpected"), false),
+    ] {
+        let body = json!({"ResponseCode":"00","ResponseText":"Certificates","Certs":[],"Connections":[],"Retired":retired});
+        let (mut client, transport) = client_with_limits(Mode::Data, false, limits);
+        authenticate(&mut client, &transport);
+        transport.json(200, body.clone());
+        for result in [
+            block_on(client.list_certificates()),
+            isecure_rust_client::BusinessFacade::new(limits).complete_list_certificates(Response {
+                status: 200,
+                body: SecretBytes::new(serde_json::to_vec(&body).unwrap()),
+            }),
+        ] {
+            if limited {
+                assert!(
+                    matches!(result,Err(Error::Limit(value)) if value.kind()==LimitKind::CollectionItems)
+                );
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(Error::Protocol(ProtocolError::MalformedResponse))
+                ));
+            }
+        }
+    }
+}

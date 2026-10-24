@@ -638,6 +638,7 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         ensure_logical(&response.response_code)?;
         self.ensure_collection(response.certs.len())?;
         self.ensure_collection(response.connections.len())?;
+        self.ensure_collection(response.retired.len())?;
         for connection in &response.connections {
             self.ensure_collection(connection.certificates.len())?;
         }

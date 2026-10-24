@@ -2,6 +2,7 @@
 
 ## 0.1.0 - Unreleased
 
+- Decode the existing optional certificate-list `Retired` collection in both protocol frontends.
 - Accept existing optional login `Account` metadata and expose it on completed direct-client
   sessions, preserving entitlement omission, strict decoding and collection limits.
 

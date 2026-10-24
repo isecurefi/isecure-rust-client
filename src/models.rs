@@ -304,6 +304,23 @@ pub struct ListCertificatesResponse {
     /// Direct and shared bank connections when returned by the current API.
     #[serde(default)]
     pub connections: Vec<BankConnectionDescriptor>,
+    /// Retired certificate summaries, separate from usable certificates and connections.
+    #[serde(default)]
+    pub retired: Vec<RetiredCertificateDescriptor>,
+}
+
+/// Public summary of a certificate that is no longer usable.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
+pub struct RetiredCertificateDescriptor {
+    /// Retired record name.
+    pub cert_name: String,
+    /// Public bank identifier.
+    pub bank: String,
+    /// Original certificate purpose.
+    pub purpose: BankCertificatePurpose,
+    /// Exact expiry text, including the provider's `unknown` value.
+    pub expires: String,
 }
 
 /// Certificate export setting.
