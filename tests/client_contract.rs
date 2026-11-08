@@ -1088,3 +1088,75 @@ fn retired_certificates_remain_separate_bounded_and_strict_in_both_frontends() {
         }
     }
 }
+
+#[test]
+fn certificate_discovery_metadata_is_optional_strict_and_bounded_in_both_frontends() {
+    let capability = json!({"Bank":"syntheticbank","ContractVersion":1,
+        "Protocols":["inline-v1"],"Encodings":["identity"],"Delivery":["inline"],
+        "MaxRawUploadBytes":1024,"MaxRawDownloadBytes":2048,"MaxInlineRequestBytes":512});
+    let limits = ResourceLimits::new(8192, 4096, 4096, 32, 32, 1).unwrap();
+    let mut unknown = capability.clone();
+    unknown["PrivateKey"] = json!("synthetic-forbidden");
+    let mut negative = capability.clone();
+    negative["MaxRawUploadBytes"] = json!(-1);
+    let mut cases = vec![
+        (None, 0),
+        (Some(json!([])), 0),
+        (Some(json!([capability.clone()])), 0),
+        (Some(json!([capability.clone(), capability.clone()])), 1),
+        (Some(json!([unknown])), 2),
+        (Some(json!([negative])), 2),
+        (Some(json!("invalid")), 2),
+    ];
+    for field in ["Protocols", "Encodings", "Delivery"] {
+        let mut oversized = capability.clone();
+        oversized[field] = json!(["one", "two"]);
+        cases.push((Some(json!([oversized])), 1));
+    }
+    for (metadata, outcome) in cases {
+        let mut body = json!({"ResponseCode":"00","ResponseText":"Certificates",
+            "Certs":[],"Connections":[],"Retired":[]});
+        if let Some(value) = &metadata {
+            body["FileTransferCapabilities"] = value.clone();
+        }
+        let (mut client, transport) = client_with_limits(Mode::Data, false, limits);
+        authenticate(&mut client, &transport);
+        transport.json(200, body.clone());
+        let direct = block_on(client.list_certificates());
+        let brokered =
+            isecure_rust_client::BusinessFacade::new(limits).complete_list_certificates(Response {
+                status: 200,
+                body: SecretBytes::new(serde_json::to_vec(&body).unwrap()),
+            });
+        if outcome == 0 {
+            let direct = direct.unwrap();
+            assert_eq!(direct, brokered.unwrap());
+            assert!(direct.certs.is_empty() && direct.connections.is_empty());
+            assert_eq!(
+                direct.file_transfer_capabilities.is_some(),
+                metadata.is_some()
+            );
+            if let Some(capability) = direct
+                .file_transfer_capabilities
+                .and_then(|v| v.into_iter().next())
+            {
+                assert_eq!(capability.bank, "syntheticbank");
+                assert_eq!(capability.protocols, ["inline-v1"]);
+                assert_eq!(capability.max_raw_download_bytes, 2048);
+            }
+        } else {
+            for result in [direct, brokered] {
+                if outcome == 1 {
+                    assert!(
+                        matches!(result, Err(Error::Limit(value)) if value.kind() == LimitKind::CollectionItems)
+                    );
+                } else {
+                    assert!(matches!(
+                        result,
+                        Err(Error::Protocol(ProtocolError::MalformedResponse))
+                    ));
+                }
+            }
+        }
+    }
+}

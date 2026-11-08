@@ -307,6 +307,31 @@ pub struct ListCertificatesResponse {
     /// Retired certificate summaries, separate from usable certificates and connections.
     #[serde(default)]
     pub retired: Vec<RetiredCertificateDescriptor>,
+    /// Optional discovery metadata; it does not authorize or enable transfers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_transfer_capabilities: Option<Vec<FileTransferCapability>>,
+}
+
+/// Bank transfer discovery metadata returned alongside certificate listings.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
+pub struct FileTransferCapability {
+    /// Public bank identifier.
+    pub bank: String,
+    /// Advertised discovery contract version.
+    pub contract_version: u8,
+    /// Advertised protocols, not a claim of SDK support.
+    pub protocols: Vec<String>,
+    /// Advertised content encodings.
+    pub encodings: Vec<String>,
+    /// Advertised delivery mechanisms.
+    pub delivery: Vec<String>,
+    /// Maximum raw upload size.
+    pub max_raw_upload_bytes: u64,
+    /// Maximum raw download size.
+    pub max_raw_download_bytes: u64,
+    /// Maximum inline request size.
+    pub max_inline_request_bytes: u64,
 }
 
 /// Public summary of a certificate that is no longer usable.

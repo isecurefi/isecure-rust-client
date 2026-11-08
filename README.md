@@ -93,7 +93,9 @@ These values help presentation; the server continues to authorize every operatio
 use the existing resource bounds, and unknown fields or malformed metadata remain errors. This
 observed v2 response extension is recorded separately from the older pinned OpenAPI snapshot.
 Certificate listings also preserve optional `retired` summaries separately from usable certificates
-and connections. Both frontends apply the same collection bounds and strict item decoding.
+and connections. Optional `file_transfer_capabilities` preserves the server's typed discovery
+metadata, including advertised protocols and size limits; it does not enable large-file transfers
+or grant authority. Both frontends apply the same collection bounds and strict item decoding.
 
 ## Brokered Component facade
 

@@ -103,3 +103,11 @@ records the three review angles, exact counts and current live-test limit. The
 retained synthetic Admin/TOTP login and key read passed; its Data identity lacks
 the current server's required mode flag, so the combined live suite did not pass.
 This fixture issue is not reported as successful end-to-end qualification.
+
+
+The owner-approved absent-field-only fixture repair and discovery compatibility
+follow-up supersede the partial live result above. The complete local gate now
+passes 51 native tests and one doc test, both Wasm runners, native/Wasm release
+builds and both Rust 1.85.1 checks. The bounded live Admin/TOTP, key-list, Data,
+certificate-list and session-metadata suite passes. See the integration review
+for the three follow-up reviews, fixture guards and qualification limits.

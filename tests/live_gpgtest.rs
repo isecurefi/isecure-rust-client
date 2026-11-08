@@ -329,6 +329,7 @@ fn provision_account(fixture: &LiveFixture) {
             "Item":{
                 "email":{"S":fixture.email},
                 "admin_enabled":{"BOOL":true},
+                "data_enabled":{"BOOL":true},
                 "phone_number_verified":{"BOOL":true},
                 "email_verified":{"BOOL":true},
                 "name":{"S":fixture.name},

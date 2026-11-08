@@ -424,6 +424,14 @@ impl BusinessFacade {
         self.ensure_collection(response.certs.len())?;
         self.ensure_collection(response.connections.len())?;
         self.ensure_collection(response.retired.len())?;
+        if let Some(capabilities) = &response.file_transfer_capabilities {
+            self.ensure_collection(capabilities.len())?;
+            for capability in capabilities {
+                self.ensure_collection(capability.protocols.len())?;
+                self.ensure_collection(capability.encodings.len())?;
+                self.ensure_collection(capability.delivery.len())?;
+            }
+        }
         for connection in &response.connections {
             self.ensure_collection(connection.certificates.len())?;
         }
