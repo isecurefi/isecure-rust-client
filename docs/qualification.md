@@ -94,3 +94,12 @@ The host still owns entropy, transient-secret release, response inspection, capt
 custody, authority and transport. This evidence qualifies the SDK boundary and deterministic build
 path only. Signed-package admission, application deployment and live provider qualification remain
 platform tasks.
+
+## Account/certificate compatibility integration — 8 November 2026
+
+The full local gate and both native/Wasm minimum-version checks passed for
+implementation `10d4bf6`. The [integration review](reviews/2026-11-08-account-certificate-compatibility.md)
+records the three review angles, exact counts and current live-test limit. The
+retained synthetic Admin/TOTP login and key read passed; its Data identity lacks
+the current server's required mode flag, so the combined live suite did not pass.
+This fixture issue is not reported as successful end-to-end qualification.
