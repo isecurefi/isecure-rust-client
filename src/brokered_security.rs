@@ -58,6 +58,14 @@ impl fmt::Debug for RequestMutation {
 
 /// Safe public input admitted for one exact security preparation stage.
 pub enum SecurityPrepareInput<'a> {
+    /// Discovery from an explicitly selected profile on the same operation/identity.
+    /// Host routing must include EncryptionProfile and registration ApiKey at initiation.
+    ProfileChallenge {
+        profile: &'a str,
+        key_id: &'a str,
+        public_key_pem: &'a str,
+        challenge: &'a str,
+    },
     Challenge {
         challenge: &'a str,
     },
@@ -111,13 +119,50 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
         ensure_limit(secrets.len(), 8, LimitKind::CollectionItems)?;
         let mutations = match (operation, input) {
             (BrokeredOperation::Register(kind), SecurityPrepareInput::Challenge { challenge }) => {
-                self.prepare_registration(kind, challenge, secrets)?
+                self.prepare_registration(kind, challenge, None, secrets)?
             }
             (BrokeredOperation::PasswordReset, SecurityPrepareInput::Challenge { challenge }) => {
-                self.prepare_password_reset(challenge, secrets)?
+                self.prepare_password_reset(challenge, None, secrets)?
             }
             (BrokeredOperation::Login, SecurityPrepareInput::Challenge { challenge }) => {
-                self.prepare_login(challenge, secrets)?
+                self.prepare_login(challenge, None, secrets)?
+            }
+            (
+                operation,
+                SecurityPrepareInput::ProfileChallenge {
+                    profile,
+                    key_id,
+                    public_key_pem,
+                    challenge,
+                },
+            ) => {
+                if profile != crate::PASSWORD_ENCRYPTION_PROFILE
+                    || key_id.is_empty()
+                    || key_id.len() > 64
+                    || !key_id
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+                    || public_key_pem.len() > 2048
+                    || !public_key_pem.starts_with("-----BEGIN PUBLIC KEY-----")
+                {
+                    return Err(ProtocolError::InvalidChallenge.into());
+                }
+                crate::crypto::validate_profile_challenge(challenge)?;
+                let mut result = match operation {
+                    BrokeredOperation::Register(kind) => {
+                        self.prepare_registration(kind, challenge, Some(public_key_pem), secrets)?
+                    }
+                    BrokeredOperation::Login => {
+                        self.prepare_login(challenge, Some(public_key_pem), secrets)?
+                    }
+                    BrokeredOperation::PasswordReset => {
+                        self.prepare_password_reset(challenge, Some(public_key_pem), secrets)?
+                    }
+                    _ => return Err(ProtocolError::InvalidConfiguration.into()),
+                };
+                result.push(public_body("EncryptionProfile", profile));
+                result.push(public_body("KeyId", key_id));
+                result
             }
             (BrokeredOperation::SelectMfa, SecurityPrepareInput::MfaSelection { method }) => {
                 require_secret_count(secrets, 1)?;
@@ -203,6 +248,7 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
         &mut self,
         kind: RegistrationKind,
         challenge: &str,
+        profile_pem: Option<&str>,
         secrets: &mut [S],
     ) -> Result<Vec<RequestMutation>, Error> {
         let expected = match kind {
@@ -211,7 +257,7 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
         };
         require_secret_count(secrets, expected)?;
         let password = read_secret(&mut secrets[0], self.limits)?;
-        let encrypted = self.encrypt(challenge, &password)?;
+        let encrypted = self.encrypt(challenge, profile_pem, &password)?;
         let api_key = match kind {
             RegistrationKind::NewIdentity => public_body("ApiKey", "0"),
             RegistrationKind::LinkedIdentity => {
@@ -228,12 +274,13 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
     fn prepare_password_reset<S: TransientSecret>(
         &mut self,
         challenge: &str,
+        profile_pem: Option<&str>,
         secrets: &mut [S],
     ) -> Result<Vec<RequestMutation>, Error> {
         require_secret_count(secrets, 2)?;
         let code = read_secret(&mut secrets[0], self.limits)?;
         let password = read_secret(&mut secrets[1], self.limits)?;
-        let encrypted = self.encrypt(challenge, &password)?;
+        let encrypted = self.encrypt(challenge, profile_pem, &password)?;
         Ok(vec![
             secret_body("Code", code),
             public_body("ChResp", challenge),
@@ -244,23 +291,35 @@ impl<E: ChallengeEncryptor> SecurityFacade<E> {
     fn prepare_login<S: TransientSecret>(
         &mut self,
         challenge: &str,
+        profile_pem: Option<&str>,
         secrets: &mut [S],
     ) -> Result<Vec<RequestMutation>, Error> {
         require_secret_count(secrets, 1)?;
         let password = read_secret(&mut secrets[0], self.limits)?;
-        let encrypted = self.encrypt(challenge, &password)?;
+        let encrypted = self.encrypt(challenge, profile_pem, &password)?;
         Ok(vec![
             public_body("ChResp", challenge),
             secret_body("Encrypted", encrypted),
         ])
     }
 
-    fn encrypt(&mut self, challenge: &str, password: &SecretString) -> Result<SecretString, Error> {
+    fn encrypt(
+        &mut self,
+        challenge: &str,
+        profile_pem: Option<&str>,
+        password: &SecretString,
+    ) -> Result<SecretString, Error> {
         ensure_limit(
             challenge.len(),
             self.limits.max_request_body_bytes(),
             LimitKind::RequestBody,
         )?;
+        if let Some(pem) = profile_pem {
+            return self
+                .encryptor
+                .encrypt_profile(pem, &SecretString::new(challenge), password)
+                .map_err(Error::Protocol);
+        }
         self.encryptor
             .encrypt(
                 &self.public_key_pem,

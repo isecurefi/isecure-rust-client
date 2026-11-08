@@ -145,7 +145,7 @@ pub(crate) fn query(url: &str, values: &[(&str, &str)]) -> String {
     format!("{url}?{query}")
 }
 
-fn percent_encode(value: &str) -> String {
+pub(crate) fn percent_encode(value: &str) -> String {
     const HEX: &[u8; 16] = b"0123456789ABCDEF";
     let mut encoded = String::with_capacity(value.len());
     for byte in value.bytes() {

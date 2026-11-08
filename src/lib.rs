@@ -30,8 +30,8 @@ pub use brokered_security::{
     SecurityPrepareInput, TransientSecret,
 };
 #[cfg(feature = "std")]
-pub use client::{Client, ClientBuilder, ClientConfig, Clock, SystemClock};
-pub use crypto::{ChallengeEncryptor, RsaChallengeEncryptor};
+pub use client::{Client, ClientBuilder, ClientConfig, Clock, ProfilePasswordReset, SystemClock};
+pub use crypto::{ChallengeEncryptor, PASSWORD_ENCRYPTION_PROFILE, RsaChallengeEncryptor};
 pub use error::{
     BrokerError, Error, HttpError, LimitError, LimitKind, LogicalError, ProtocolError,
     TransportError, TransportErrorKind,

@@ -194,3 +194,34 @@ AWS_PROFILE=default AWS_REGION=eu-west-1 ISECURE_GPGTEST_LIVE=1 \
 
 See [dependency review](docs/dependencies.md), [qualification evidence](docs/qualification.md) and
 [security guidance](SECURITY.md).
+
+
+## Opt-in password profile (unpublished preview)
+
+Owner scope (2026-11-08): draft and local testing only. This work does not
+authorize server deployment, tenant-policy activation or SDK publication.
+
+This source adds `password-rsa-oaep-sha256-v1` on existing v2 routes. Availability
+is environment-specific: the SDK requires matching server discovery and never
+falls back if an older server ignores the selector. Existing configuration keeps
+the legacy profile. After server policy activation, new tenants must select the
+new profile; grandfathered tenants can use either profile, including new accounts.
+
+Set `.password_profile(true)` on `ClientConfig::builder(...)`. Registration and
+login discover the selected key. For reset, obtain the opaque value with
+`init_profile_password_reset()` and consume it with
+`complete_profile_password_reset(discovery, &code, &new_password)`. The legacy
+reset helpers refuse a client configured for the new profile. Injected encryptors
+must implement `ChallengeEncryptor::encrypt_profile`; the default refuses.
+The no_std security facade accepts `SecurityPrepareInput::ProfileChallenge`;
+the host must request the profile on the exact initiation route (including the
+registration tenant) and pass all returned discovery fields. Host/Component
+integration must be qualified separately before advertising support.
+
+The profile uses direct RSA-3072/4096 OAEP with SHA-256/MGF1-SHA-256 and an empty
+label. The binary envelope binds the exact challenge and preserves 1–283 UTF-8
+password bytes without normalization. Discovery is not authorization. Admin MFA
+still applies. Do not log password envelopes, tokens, codes or raw auth bodies.
+Reset uses its own discovery; never substitute an InitLogin challenge or
+automatically retry code delivery/password mutation. This preview is not a
+production availability or NIST/FIPS certification claim.

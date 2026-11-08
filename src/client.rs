@@ -57,6 +57,7 @@ pub struct ClientConfig {
     public_key_pem: String,
     bank: String,
     api_key: Option<SecretString>,
+    new_password_profile: bool,
     expiry_skew_seconds: u64,
     limits: ResourceLimits,
 }
@@ -104,6 +105,7 @@ pub struct ClientBuilder {
     public_key_pem: Option<String>,
     bank: Option<String>,
     api_key: Option<SecretString>,
+    new_password_profile: bool,
     expiry_skew_seconds: u64,
     limits: ResourceLimits,
 }
@@ -122,6 +124,7 @@ impl ClientBuilder {
             public_key_pem: None,
             bank: None,
             api_key: None,
+            new_password_profile: false,
             expiry_skew_seconds: 5,
             limits: ResourceLimits::default(),
         }
@@ -166,6 +169,12 @@ impl ClientBuilder {
     /// Sets an existing integrator API key, including the admin key reused for data registration.
     pub fn api_key(mut self, value: SecretString) -> Self {
         self.api_key = Some(value);
+        self
+    }
+
+    /// Explicitly adopts password-rsa-oaep-sha256-v1. Legacy remains the default.
+    pub const fn password_profile(mut self, enabled: bool) -> Self {
+        self.new_password_profile = enabled;
         self
     }
 
@@ -232,6 +241,7 @@ impl ClientBuilder {
             public_key_pem,
             bank,
             api_key: self.api_key,
+            new_password_profile: self.new_password_profile,
             expiry_skew_seconds: self.expiry_skew_seconds,
             limits: self.limits,
         })
@@ -326,10 +336,12 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
 
     /// Registers the configured admin or data identity.
     pub async fn register(&mut self) -> Result<RegistrationResult, Error> {
-        let challenge = self.registration_challenge().await?;
-        let encrypted = self.encryptor.encrypt(
+        let challenge = self
+            .password_discovery(self.urls()?.account(), true)
+            .await?;
+        let encrypted = challenge.encrypt(
+            &mut self.encryptor,
             &self.config.public_key_pem,
-            &challenge,
             &self.config.password,
         )?;
         let request = RegisterWire {
@@ -337,7 +349,9 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
             phone: &self.config.phone,
             company: &self.config.company,
             api_key: self.api_key().map_or("0", SecretString::expose_secret),
-            challenge: challenge.expose_secret(),
+            challenge: &challenge.challenge,
+            encryption_profile: challenge.encryption_profile.as_deref(),
+            key_id: challenge.key_id.as_deref(),
             encrypted: encrypted.expose_secret(),
         };
         let mut response: RegisterResponseWire = self
@@ -370,6 +384,9 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
 
     /// Starts password reset and returns the provider challenge envelope.
     pub async fn init_password_reset(&self) -> Result<ApiResponse, Error> {
+        if self.config.new_password_profile {
+            return Err(ProtocolError::InvalidConfiguration.into());
+        }
         let response: ApiResponse = self
             .send_json::<(), _>(HttpMethod::Get, self.urls()?.password(), None, false, 200)
             .await?;
@@ -379,6 +396,9 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
 
     /// Completes password reset with a code, challenge and new password.
     pub async fn password_reset(&mut self, reset: &PasswordReset) -> Result<ApiResponse, Error> {
+        if self.config.new_password_profile {
+            return Err(ProtocolError::InvalidConfiguration.into());
+        }
         let encrypted = self.encryptor.encrypt(
             &self.config.public_key_pem,
             &reset.challenge,
@@ -387,6 +407,8 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         let request = PasswordResetWire {
             code: reset.code.expose_secret(),
             challenge: reset.challenge.expose_secret(),
+            encryption_profile: None,
+            key_id: None,
             encrypted: encrypted.expose_secret(),
         };
         let response: ApiResponse = self
@@ -405,14 +427,18 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
     /// Starts login and returns the next typed state.
     pub async fn login(&mut self) -> Result<AuthState, Error> {
         self.reset_auth_attempt();
-        let challenge = self.login_challenge().await?;
-        let encrypted = self.encryptor.encrypt(
+        let challenge = self
+            .password_discovery(self.urls()?.session(), false)
+            .await?;
+        let encrypted = challenge.encrypt(
+            &mut self.encryptor,
             &self.config.public_key_pem,
-            &challenge,
             &self.config.password,
         )?;
         let request = LoginWire {
-            challenge: challenge.expose_secret(),
+            challenge: &challenge.challenge,
+            encryption_profile: challenge.encryption_profile.as_deref(),
+            key_id: challenge.key_id.as_deref(),
             encrypted: encrypted.expose_secret(),
         };
         let response: AuthResponseWire = self
@@ -804,26 +830,88 @@ impl<T: Transport, E: ChallengeEncryptor, C: Clock> Client<T, E, C> {
         Ok(response)
     }
 
-    async fn registration_challenge(&self) -> Result<SecretString, Error> {
-        let mut response: ChallengeWire = self
-            .send_json::<(), _>(HttpMethod::Get, self.urls()?.account(), None, false, 200)
+    async fn password_discovery(
+        &self,
+        mut url: String,
+        registration: bool,
+    ) -> Result<ChallengeWire, Error> {
+        if self.config.new_password_profile {
+            url.push_str("?EncryptionProfile=");
+            url.push_str(crate::PASSWORD_ENCRYPTION_PROFILE);
+            if registration {
+                url.push_str("&ApiKey=");
+                let tenant = self.api_key().map_or("0", SecretString::expose_secret);
+                url.push_str(&crate::url::percent_encode(tenant));
+            }
+        }
+        let response: ChallengeWire = self
+            .send_json::<(), _>(HttpMethod::Get, url, None, false, 200)
             .await?;
         response.envelope().ensure_success()?;
-        if response.challenge.is_empty() {
-            return Err(Error::Protocol(ProtocolError::MissingValue));
-        }
-        Ok(SecretString::new(std::mem::take(&mut response.challenge)))
+        response.validate(self.config.new_password_profile)?;
+        Ok(response)
     }
 
-    async fn login_challenge(&self) -> Result<SecretString, Error> {
-        let mut response: ChallengeWire = self
-            .send_json::<(), _>(HttpMethod::Get, self.urls()?.session(), None, false, 200)
-            .await?;
-        response.envelope().ensure_success()?;
-        if response.challenge.is_empty() {
-            return Err(Error::Protocol(ProtocolError::MissingValue));
+    /// Starts a reset using the new profile and returns opaque, operation-bound discovery.
+    pub async fn init_profile_password_reset(&self) -> Result<ProfilePasswordReset, Error> {
+        if !self.config.new_password_profile {
+            return Err(ProtocolError::InvalidConfiguration.into());
         }
-        Ok(SecretString::new(std::mem::take(&mut response.challenge)))
+        Ok(ProfilePasswordReset {
+            discovery: self
+                .password_discovery(self.urls()?.password(), false)
+                .await?,
+            identity: (
+                self.config.base_url.clone(),
+                self.config.email.clone(),
+                self.config.mode,
+                self.api_key().map(|v| v.expose_secret().to_owned()),
+            ),
+        })
+    }
+
+    /// Consumes reset discovery once. This neither retries nor establishes a session.
+    pub async fn complete_profile_password_reset(
+        &mut self,
+        reset: ProfilePasswordReset,
+        code: &SecretString,
+        password: &SecretString,
+    ) -> Result<ApiResponse, Error> {
+        let identity = (
+            self.config.base_url.clone(),
+            self.config.email.clone(),
+            self.config.mode,
+            self.api_key().map(|v| v.expose_secret().to_owned()),
+        );
+        if !self.config.new_password_profile
+            || identity != reset.identity
+            || code.expose_secret().len() != 6
+            || !code.expose_secret().bytes().all(|b| b.is_ascii_digit())
+        {
+            return Err(ProtocolError::InvalidConfiguration.into());
+        }
+        let discovery = reset.discovery;
+        let encrypted =
+            discovery.encrypt(&mut self.encryptor, &self.config.public_key_pem, password)?;
+        let request = PasswordResetWire {
+            code: code.expose_secret(),
+            challenge: &discovery.challenge,
+            encrypted: encrypted.expose_secret(),
+            encryption_profile: discovery.encryption_profile.as_deref(),
+            key_id: discovery.key_id.as_deref(),
+        };
+        let response: ApiResponse = self
+            .send_json(
+                HttpMethod::Post,
+                self.urls()?.password(),
+                Some(&request),
+                false,
+                200,
+            )
+            .await?;
+        response.ensure_success()?;
+        self.reset_auth_attempt();
+        Ok(response)
     }
 
     fn apply_auth_response(&mut self, mut wire: AuthResponseWire) -> Result<AuthState, Error> {
@@ -1189,9 +1277,69 @@ struct ChallengeWire {
     response_code: String,
     response_text: String,
     challenge: String,
+    #[serde(default)]
+    encryption_profile: Option<String>,
+    #[serde(default)]
+    key_id: Option<String>,
+    #[serde(default)]
+    public_key: Option<String>,
+}
+
+/// Opaque reset discovery. Consume it on the same configured client; never log it.
+pub struct ProfilePasswordReset {
+    discovery: ChallengeWire,
+    identity: (String, String, Mode, Option<String>),
 }
 
 impl ChallengeWire {
+    fn validate(&self, new_profile: bool) -> Result<(), ProtocolError> {
+        if self.challenge.is_empty() {
+            return Err(ProtocolError::InvalidChallenge);
+        }
+        if new_profile {
+            if self.encryption_profile.as_deref() != Some(crate::PASSWORD_ENCRYPTION_PROFILE)
+                || !self.key_id.as_ref().is_some_and(|id| {
+                    !id.is_empty()
+                        && id.len() <= 64
+                        && id
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+                })
+                || !self.public_key.as_ref().is_some_and(|pem| {
+                    pem.len() <= 2048 && pem.starts_with("-----BEGIN PUBLIC KEY-----")
+                })
+            {
+                return Err(ProtocolError::InvalidChallenge);
+            }
+            crate::crypto::validate_profile_challenge(&self.challenge)?;
+        } else if self.encryption_profile.is_some()
+            || self.key_id.is_some()
+            || self.public_key.is_some()
+        {
+            return Err(ProtocolError::InvalidChallenge);
+        }
+        Ok(())
+    }
+    fn encrypt<E: ChallengeEncryptor>(
+        &self,
+        encryptor: &mut E,
+        legacy_pem: &str,
+        password: &SecretString,
+    ) -> Result<SecretString, ProtocolError> {
+        let challenge = SecretString::new(self.challenge.clone());
+        if self.encryption_profile.is_some() {
+            encryptor.encrypt_profile(
+                self.public_key
+                    .as_deref()
+                    .ok_or(ProtocolError::InvalidPublicKey)?,
+                &challenge,
+                password,
+            )
+        } else {
+            encryptor.encrypt(legacy_pem, &challenge, password)
+        }
+    }
+
     fn envelope(&self) -> ApiResponse {
         ApiResponse {
             response_code: self.response_code.clone(),
@@ -1217,6 +1365,10 @@ struct RegisterWire<'a> {
     #[serde(rename = "ChResp")]
     challenge: &'a str,
     encrypted: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    encryption_profile: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -1250,6 +1402,10 @@ struct PasswordResetWire<'a> {
     #[serde(rename = "ChResp")]
     challenge: &'a str,
     encrypted: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    encryption_profile: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -1258,6 +1414,10 @@ struct LoginWire<'a> {
     #[serde(rename = "ChResp")]
     challenge: &'a str,
     encrypted: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    encryption_profile: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key_id: Option<&'a str>,
 }
 
 #[derive(Serialize)]
