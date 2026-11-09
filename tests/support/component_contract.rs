@@ -153,6 +153,7 @@ fn config() -> ClientConfig {
         "contract@example.test",
         Mode::Data,
     )
+    .password_profile(false)
     .phone("+358400000000")
     .company("Synthetic Company")
     .name("Synthetic User")

@@ -89,6 +89,7 @@ fn config(
     limits: ResourceLimits,
 ) -> Result<ClientConfig, Error> {
     ClientConfig::builder(base_url, email, Mode::Admin)
+        .password_profile(false)
         .phone(phone)
         .company("Synthetic Company")
         .name("Synthetic User")

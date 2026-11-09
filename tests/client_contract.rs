@@ -94,6 +94,7 @@ fn config_with_limits(mode: Mode, api_key: bool, limits: ResourceLimits) -> Clie
         "user@example.test",
         mode,
     )
+    .password_profile(false)
     .phone("+358401234567")
     .company("Example Company")
     .name("Example User")
@@ -562,6 +563,7 @@ fn url_and_request_body_limits_cover_exact_boundary_and_maximum_plus_one() {
             "user@example.test",
             Mode::Admin,
         )
+        .password_profile(false)
         .phone("+358401234567")
         .company("Example Company")
         .name("Example User")
@@ -1159,4 +1161,120 @@ fn certificate_discovery_metadata_is_optional_strict_and_bounded_in_both_fronten
             }
         }
     }
+}
+
+#[test]
+fn default_profile_routes_encrypts_and_binds_all_password_operations() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use isecure_rust_client::RsaChallengeEncryptor;
+    use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+    use rsa::{Oaep, RsaPrivateKey, pkcs8::DecodePrivateKey};
+    use sha2::Sha256;
+    let vectors: Value =
+        serde_json::from_str(include_str!("fixtures/password-profile/vectors.json")).unwrap();
+    let case = &vectors["Cases"][0];
+    let key = &vectors["Keys"][0];
+    for operation in ["login", "register", "reset"] {
+        let config = ClientConfig::builder(
+            "https://example.invalid/v2",
+            "user@example.invalid",
+            Mode::Data,
+        )
+        .phone("+358400000000")
+        .company("Synthetic")
+        .name("Test")
+        .password(SecretString::new(case["Password"].as_str().unwrap()))
+        .public_key_pem("unused legacy key")
+        .bank("nordea")
+        .api_key(SecretString::new("tenant"))
+        .build()
+        .unwrap();
+        let transport = FakeTransport::default();
+        transport.json(200, json!({"ResponseCode":"00", "ResponseText":"OK", "Challenge":case["Challenge"], "EncryptionProfile":case["EncryptionProfile"], "KeyId":key["KeyId"], "PublicKey":key["PublicKey"]}));
+        match operation {
+            "login" => transport.json(200,json!({"ResponseCode":"00","ResponseText":"Login OK","ApiKey":"tenant","IdToken":"synthetic-token","ExpiresIn":"3600"})),
+            "register" => transport.json(201,json!({"ResponseCode":"00","ResponseText":"Created","ApiKey":"tenant"})),
+            _ => transport.json(200,json!({"ResponseCode":"00","ResponseText":"OK"})),
+        }
+        let mut client = Client::with_clock(
+            config,
+            transport.clone(),
+            RsaChallengeEncryptor::new(ChaCha20Rng::from_seed([42; 32])),
+            FixtureClock(1000),
+        );
+        match operation {
+            "login" => {
+                block_on(client.login()).unwrap();
+            }
+            "register" => {
+                block_on(client.register()).unwrap();
+            }
+            _ => {
+                let reset = block_on(client.init_profile_password_reset()).unwrap();
+                block_on(client.complete_profile_password_reset(
+                    reset,
+                    &SecretString::new("123456"),
+                    &SecretString::new(case["Password"].as_str().unwrap()),
+                ))
+                .unwrap();
+            }
+        }
+        let state = transport.state.borrow();
+        assert_eq!(state.requests.len(), 2);
+        assert!(
+            state.requests[0]
+                .url
+                .contains("EncryptionProfile=password-rsa-oaep-sha256-v1")
+        );
+        if operation == "register" {
+            assert!(state.requests[0].url.contains("ApiKey=tenant"));
+        }
+        if operation == "reset" {
+            assert!(state.requests[0].url.contains("/password?"));
+        }
+        drop(state);
+        let body = transport.request_json(1);
+        assert_eq!(
+            body["EncryptionProfile"],
+            isecure_rust_client::PASSWORD_ENCRYPTION_PROFILE
+        );
+        let private = RsaPrivateKey::from_pkcs8_pem(key["PrivateKey"].as_str().unwrap()).unwrap();
+        let plain = private
+            .decrypt(
+                Oaep::new::<Sha256>(),
+                &STANDARD
+                    .decode(body["Encrypted"].as_str().unwrap())
+                    .unwrap(),
+            )
+            .unwrap();
+        let hex: String = plain.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex, case["FrameHex"]);
+    }
+}
+
+#[test]
+fn default_profile_refuses_old_server_without_legacy_retry() {
+    let config = ClientConfig::builder(
+        "https://example.invalid/v2",
+        "user@example.invalid",
+        Mode::Data,
+    )
+    .phone("+358400000000")
+    .company("Synthetic")
+    .name("Test")
+    .password(SecretString::new("Example-password-123!"))
+    .public_key_pem("unused")
+    .bank("nordea")
+    .build()
+    .unwrap();
+    let transport = FakeTransport::default();
+    transport.json(200, challenge());
+    let mut client = Client::with_clock(
+        config,
+        transport.clone(),
+        FixtureEncryptor,
+        FixtureClock(1000),
+    );
+    assert!(block_on(client.login()).is_err());
+    assert_eq!(transport.state.borrow().requests.len(), 1);
 }
