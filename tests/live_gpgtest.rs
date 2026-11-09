@@ -463,6 +463,7 @@ fn client(
     mode: Mode,
 ) -> Client<CurlTransport, RsaChallengeEncryptor<ChaCha20Rng>> {
     let config = ClientConfig::builder(&fixture.base_url, &fixture.email, mode)
+        .password_profile(false)
         .phone(&fixture.phone)
         .company(&fixture.company)
         .name(&fixture.name)

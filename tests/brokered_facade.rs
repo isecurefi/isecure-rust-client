@@ -746,6 +746,7 @@ fn direct_client(transport: FakeTransport) -> Client<FakeTransport, FixtureEncry
         "brokered@example.test",
         Mode::Admin,
     )
+    .password_profile(false)
     .phone("+358400000000")
     .company("Synthetic Company")
     .name("Synthetic User")

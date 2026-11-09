@@ -124,7 +124,7 @@ impl ClientBuilder {
             public_key_pem: None,
             bank: None,
             api_key: None,
-            new_password_profile: false,
+            new_password_profile: true,
             expiry_skew_seconds: 5,
             limits: ResourceLimits::default(),
         }
@@ -172,7 +172,8 @@ impl ClientBuilder {
         self
     }
 
-    /// Explicitly adopts password-rsa-oaep-sha256-v1. Legacy remains the default.
+    /// Selects the password profile. Defaults to true (password-rsa-oaep-sha256-v1).
+    /// Set false explicitly only for a grandfathered tenant requiring legacy.
     pub const fn password_profile(mut self, enabled: bool) -> Self {
         self.new_password_profile = enabled;
         self
