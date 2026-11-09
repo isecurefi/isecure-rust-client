@@ -2,7 +2,12 @@
 
 `isecure-rust-client` is the transport-neutral Rust SDK for ISECure REST API v2. It covers the same
 File Exchange protocol as `isecure-ts-client` 2.1.0, with Rust types and explicit state transitions.
-The crate is not published yet (`publish = false`).
+Version 0.2.0 is distributed through the GitHub release as a crate archive and
+tagged Git source. It is not published to crates.io (`publish = false`).
+
+```toml
+isecure-rust-client = { git = "https://github.com/isecurefi/isecure-rust-client", tag = "v0.2.0" }
+```
 
 The client supports:
 
@@ -196,12 +201,14 @@ See [dependency review](docs/dependencies.md), [qualification evidence](docs/qua
 [security guidance](SECURITY.md).
 
 
-## Opt-in password profile (unpublished preview)
+## Opt-in password profile (gpgtest)
 
-Qualification (2026-11-08): this unpublished source passed local checks and
+Qualification (2026-11-08): this implementation passed local checks and
 bounded hosted registration/login tests on ordinary gpgtest, including Admin MFA
 and 283-byte UTF-8 passwords. RSA-3072 and RSA-4096 login were exercised.
-Production authentication deployment and SDK publication remain excluded.
+The stronger profile is currently available on gpgtest only. Existing configuration
+keeps legacy authentication for production; SDK installation does not activate
+the new profile.
 
 Additional qualification (2026-11-09): this SDK passed Data/Admin TOTP login,
 reset initialization and invalid reset-code rejection against gpgtest Login 28.
@@ -232,5 +239,5 @@ label. The binary envelope binds the exact challenge and preserves 1–283 UTF-8
 password bytes without normalization. Discovery is not authorization. Admin MFA
 still applies. Do not log password envelopes, tokens, codes or raw auth bodies.
 Reset uses its own discovery; never substitute an InitLogin challenge or
-automatically retry code delivery/password mutation. This preview is not a
-production availability or NIST/FIPS certification claim.
+automatically retry code delivery/password mutation. This feature does not establish
+production availability or NIST/FIPS certification.
