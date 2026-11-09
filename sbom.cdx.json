@@ -6,8 +6,8 @@
     "component": {
       "type": "library",
       "name": "isecure-rust-client",
-      "version": "0.1.0",
-      "purl": "pkg:cargo/isecure-rust-client@0.1.0"
+      "version": "0.2.0",
+      "purl": "pkg:cargo/isecure-rust-client@0.2.0"
     }
   },
   "components": [

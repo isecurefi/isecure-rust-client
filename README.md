@@ -2,7 +2,12 @@
 
 `isecure-rust-client` is the transport-neutral Rust SDK for ISECure REST API v2. It covers the same
 File Exchange protocol as `isecure-ts-client` 2.1.0, with Rust types and explicit state transitions.
-The crate is not published yet (`publish = false`).
+Version 0.2.0 is distributed through the GitHub release as a crate archive and
+tagged Git source. It is not published to crates.io (`publish = false`).
+
+```toml
+isecure-rust-client = { git = "https://github.com/isecurefi/isecure-rust-client", tag = "v0.2.0" }
+```
 
 The client supports:
 
@@ -194,3 +199,45 @@ AWS_PROFILE=default AWS_REGION=eu-west-1 ISECURE_GPGTEST_LIVE=1 \
 
 See [dependency review](docs/dependencies.md), [qualification evidence](docs/qualification.md) and
 [security guidance](SECURITY.md).
+
+
+## Opt-in password profile (gpgtest)
+
+Qualification (2026-11-08): this implementation passed local checks and
+bounded hosted registration/login tests on ordinary gpgtest, including Admin MFA
+and 283-byte UTF-8 passwords. RSA-3072 and RSA-4096 login were exercised.
+The stronger profile is currently available on gpgtest only. Existing configuration
+keeps legacy authentication for production; SDK installation does not activate
+the new profile.
+
+Additional qualification (2026-11-09): this SDK passed Data/Admin TOTP login,
+reset initialization and invalid reset-code rejection against gpgtest Login 28.
+The reset reached Cognito and was refused with CodeMismatchException. Login also
+passed after an operator-managed synthetic password change. That change is not
+a public password-reset test: successful reset with a delivered code remains
+unqualified. Operator-confirmed email/phone attributes do not prove delivery.
+
+This source adds `password-rsa-oaep-sha256-v1` on existing v2 routes. Availability
+is environment-specific: the SDK requires matching server discovery and never
+falls back if an older server ignores the selector. Existing configuration keeps
+the legacy profile. After server policy activation, new tenants must select the
+new profile; grandfathered tenants can use either profile, including new accounts.
+
+Set `.password_profile(true)` on `ClientConfig::builder(...)`. Registration and
+login discover the selected key. For reset, obtain the opaque value with
+`init_profile_password_reset()` and consume it with
+`complete_profile_password_reset(discovery, &code, &new_password)`. The legacy
+reset helpers refuse a client configured for the new profile. Injected encryptors
+must implement `ChallengeEncryptor::encrypt_profile`; the default refuses.
+The no_std security facade accepts `SecurityPrepareInput::ProfileChallenge`;
+the host must request the profile on the exact initiation route (including the
+registration tenant) and pass all returned discovery fields. Host/Component
+integration must be qualified separately before advertising support.
+
+The profile uses direct RSA-3072/4096 OAEP with SHA-256/MGF1-SHA-256 and an empty
+label. The binary envelope binds the exact challenge and preserves 1–283 UTF-8
+password bytes without normalization. Discovery is not authorization. Admin MFA
+still applies. Do not log password envelopes, tokens, codes or raw auth bodies.
+Reset uses its own discovery; never substitute an InitLogin challenge or
+automatically retry code delivery/password mutation. This feature does not establish
+production availability or NIST/FIPS certification.
