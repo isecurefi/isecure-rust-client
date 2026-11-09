@@ -203,6 +203,13 @@ bounded hosted registration/login tests on ordinary gpgtest, including Admin MFA
 and 283-byte UTF-8 passwords. RSA-3072 and RSA-4096 login were exercised.
 Production authentication deployment and SDK publication remain excluded.
 
+Additional qualification (2026-11-09): this SDK passed Data/Admin TOTP login,
+reset initialization and invalid reset-code rejection against gpgtest Login 28.
+The reset reached Cognito and was refused with CodeMismatchException. Login also
+passed after an operator-managed synthetic password change. That change is not
+a public password-reset test: successful reset with a delivered code remains
+unqualified. Operator-confirmed email/phone attributes do not prove delivery.
+
 This source adds `password-rsa-oaep-sha256-v1` on existing v2 routes. Availability
 is environment-specific: the SDK requires matching server discovery and never
 falls back if an older server ignores the selector. Existing configuration keeps
